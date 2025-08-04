@@ -18,7 +18,7 @@ export default function ProjectDetail() {
     const [filteredTasks, setFilteredTasks] = useState(project?.details || []); // ✅ ให้เริ่มต้นด้วย task ทั้งหมด
     const [preFillDates, setPreFillDates] = useState(null);
     const calendarRef = useRef(null);
-    const projectEnd = dayjs(project.endDate);
+    const projectEnd = dayjs(project?.endDate || null);
 
     if (!project) return <div className="text-center mt-20 text-red-500 text-xl">❌ ไม่พบโปรเจค</div>;
 
