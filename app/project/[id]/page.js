@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import Swal from "sweetalert2";
 import dayjs from "dayjs";
 import { projectsData, memberOptions, roleOptions } from "@/lib/mockData";
+import GanttChart from "@/components/GanttChart";
 
 export default function ProjectDetail() {
     const { id } = useParams();
@@ -19,6 +20,7 @@ export default function ProjectDetail() {
     const [preFillDates, setPreFillDates] = useState(null);
     const calendarRef = useRef(null);
     const projectEnd = dayjs(project?.endDate || null);
+    const [modeChoose, setmodeChoose] = useState("Calenda");
 
     if (!project) return <div className="text-center mt-20 text-red-500 text-xl">❌ ไม่พบโปรเจค</div>;
 
@@ -68,12 +70,19 @@ export default function ProjectDetail() {
 
     // ✅ งานที่เกินกำหนด
     const overdueTasks = tasks.filter((task) => dayjs(task.end).isAfter(projectEnd, "day"));
+
+    // ✅ หา Task ที่สิ้นสุดช้าที่สุดจากงานที่เกินกำหนด
     const maxOverdueTask = overdueTasks.length > 0
-        ? overdueTasks.reduce((max, curr) =>
-            dayjs(curr.end).isAfter(dayjs(max.end)) ? curr : max
+        ? overdueTasks.reduce((latest, task) =>
+            dayjs(task.end).isAfter(dayjs(latest.end)) ? task : latest
         )
         : null;
-    const overdueDays = maxOverdueTask ? dayjs(maxOverdueTask.end).diff(projectEnd, "day") : 0;
+
+    // ✅ คำนวณจำนวนวันเกิน (วันสิ้นสุด task ช้าที่สุด - วันสิ้นสุดโปรเจค)
+    const overdueDays = maxOverdueTask
+        ? dayjs(maxOverdueTask.end).diff(projectEnd, "day")
+        : 0;
+
 
     const formatDate = (date) => dayjs(date).format("DD/MM/YYYY");
 
@@ -81,12 +90,20 @@ export default function ProjectDetail() {
         <div className="flex min-h-screen bg-gradient-to-r from-blue-50 to-purple-100 p-6 gap-6">
             {/* 📋 Project Info Panel */}
             <div className="w-1/3 bg-white rounded-xl shadow-xl p-6 flex flex-col">
-                <h2
-                    onClick={() => router.push("/")}
-                    className="text-2xl font-bold text-purple-600 mb-4 cursor-pointer flex items-center gap-2 hover:scale-105 hover:text-purple-800 transition"
-                >
-                    🔙 <span>{project.name}</span>
-                </h2>
+                <div className="flex items-center w-full">
+                    <div className="flex w-1/2 justify-start items-center">
+                        <h2
+                            onClick={() => router.push("/")}
+                            className="text-2xl font-bold text-purple-600 mb-4 cursor-pointer flex items-center gap-2 hover:scale-105 hover:text-purple-800 transition"
+                        >
+                            🔙 <span>{project.name}</span>
+                        </h2>
+                    </div>
+                    <div className="flex w-1/2 justify-end items-center">
+                        <button onClick={() => setmodeChoose("Calenda")} className={`rounded-l-lg p-2 ${modeChoose == "Calenda" ? " bg-blue-500 text-white " : " bg-gray-500 text-white "}`}>Calenda</button>
+                        <button onClick={() => setmodeChoose("GanttChart")} className={`rounded-r-lg p-2 ${modeChoose == "GanttChart" ? " bg-blue-500 text-white " : " bg-gray-500 text-white "}`}>GanttChart</button>
+                    </div>
+                </div>
 
                 <p className="mb-2"><span className="font-semibold">ทีม:</span> {project.team}</p>
                 <p className="mb-2">
@@ -101,6 +118,7 @@ export default function ProjectDetail() {
                         (Task: <strong>{maxOverdueTask.role}</strong> สิ้นสุด {formatDate(maxOverdueTask.end)})
                     </div>
                 )}
+
 
                 <h3 className="text-lg font-semibold text-purple-500 mb-2 flex justify-between items-center">
                     รายละเอียดตำแหน่ง:
@@ -237,20 +255,24 @@ export default function ProjectDetail() {
 
             {/* 📅 ปฏิทิน */}
             <div className="flex-1 bg-white rounded-xl shadow-xl p-4">
-                <BigCalendar
-                    ref={calendarRef}
-                    tasks={filteredTasks}
-                    onEditTask={(task) => {
-                        setEditTask(tasks.findIndex((t) => t === task));
-                        setPreFillDates(null);
-                        setOpenTaskModal(true);
-                    }}
-                    onAddTask={({ start, end }) => {
-                        setEditTask(null);
-                        setPreFillDates({ start, end });
-                        setOpenTaskModal(true);
-                    }}
-                />
+                {modeChoose == "Calenda" ?
+                    <BigCalendar
+                        ref={calendarRef}
+                        tasks={filteredTasks}
+                        onEditTask={(task) => {
+                            setEditTask(tasks.findIndex((t) => t === task));
+                            setPreFillDates(null);
+                            setOpenTaskModal(true);
+                        }}
+                        onAddTask={({ start, end }) => {
+                            setEditTask(null);
+                            setPreFillDates({ start, end });
+                            setOpenTaskModal(true);
+                        }}
+                    />
+                    :
+                    <GanttChart tasks={filteredTasks} project={project} />
+                }
             </div>
 
             {openTaskModal && (
