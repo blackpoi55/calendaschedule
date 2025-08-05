@@ -87,7 +87,7 @@ export default function ProjectDetail() {
     const formatDate = (date) => dayjs(date).format("DD/MM/YYYY");
 
     return (
-        <div className="flex min-h-screen bg-gradient-to-r from-blue-50 to-purple-100 p-6 gap-6">
+        <div className="flex min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#fce4ec] to-[#ede7f6] p-6 gap-6">
             {/* 📋 Project Info Panel */}
             <div className="w-1/3 bg-white rounded-xl shadow-xl p-6 flex flex-col">
                 <div className="flex items-center w-full">
@@ -100,8 +100,8 @@ export default function ProjectDetail() {
                         </h2>
                     </div>
                     <div className="flex w-1/2 justify-end items-center">
-                        <button onClick={() => setmodeChoose("Calenda")} className={`rounded-l-lg p-2 ${modeChoose == "Calenda" ? " bg-blue-500 text-white " : " bg-gray-500 text-white "}`}>Calenda</button>
-                        <button onClick={() => setmodeChoose("GanttChart")} className={`rounded-r-lg p-2 ${modeChoose == "GanttChart" ? " bg-blue-500 text-white " : " bg-gray-500 text-white "}`}>GanttChart</button>
+                        <button onClick={() => setmodeChoose("Calenda")} className={`rounded-l-lg p-2 ${modeChoose == "Calenda" ? " bg-gradient-to-r from-purple-300 to-pink-400 text-white " : " bg-gray-500 text-white "}`}>Calenda</button>
+                        <button onClick={() => setmodeChoose("GanttChart")} className={`rounded-r-lg p-2 ${modeChoose == "GanttChart" ? " bg-gradient-to-r from-purple-300 to-pink-400 text-white " : " bg-gray-500 text-white "}`}>GanttChart</button>
                     </div>
                 </div>
 
@@ -136,7 +136,7 @@ export default function ProjectDetail() {
                                 calendarRef.current.navigate(firstStart.toDate(), "month");
                             }
                         }}
-                        className="text-sm px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                        className="text-sm px-3 py-1 bg-gradient-to-r from-purple-300 to-pink-400 text-white rounded-lg hover:bg-blue-600 transition"
                     >
                         แสดงทั้งหมด
                     </button>
@@ -248,7 +248,7 @@ export default function ProjectDetail() {
                         setPreFillDates(null);
                         setOpenTaskModal(true);
                     }}
-                    className="mt-4 w-full py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl shadow hover:scale-105 transition">
+                    className="mt-4 w-full py-2 bg-gradient-to-r from-purple-300 to-pink-400 text-white rounded-xl shadow hover:scale-105 transition">
                     + เพิ่มตำแหน่ง
                 </button>
             </div>

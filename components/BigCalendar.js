@@ -14,7 +14,7 @@ const localizer = dayjsLocalizer(dayjs);
 
 const getTeamColor = (teamName) => {
   const team = teamOptions.find((t) => t.label === teamName);
-  return team ? team.color : "#9b5de5";
+  return team ? team.color : "#c084fc";
 };
 
 const getRoleColor = (roleName) => {
@@ -51,7 +51,7 @@ const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
       <style>{`
         /* ปรับหัวปฏิทิน */
         .rbc-toolbar {
-          background: linear-gradient(to right, #7c3aed, #ec4899);
+          background: linear-gradient(to right, #f9a8d4, #c084fc);
           color: white;
           padding: 10px;
           border-radius: 12px 12px 0 0;
