@@ -1,14 +1,8 @@
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+import { Sarabun } from "next/font/google";
+import "./globals.css"; 
+const sarabun = Sarabun({
+  weight: ['400', '700'], // You can specify the weights you want to include
+  subsets: ['latin'], // You can specify the subsets you want to include
 });
 
 export const metadata = {
@@ -19,7 +13,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className={sarabun.className}>
         {children}
       </body>
     </html>

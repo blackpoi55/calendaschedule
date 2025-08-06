@@ -2,11 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Sarabun";
+  src: url("/fonts/sarabun/Sarabun-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
 
+@font-face {
+  font-family: "Sarabun", "sans-serif";
+  src: url("/fonts/sarabun/Sarabun-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Sarabun", "sans-serif";
+  src: url("/fonts/sarabun/Sarabun-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Sarabun", "sans-serif";
+  src: url("/fonts/sarabun/Sarabun-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Sarabun", "sans-serif";
+  src: url("/fonts/sarabun/Sarabun-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
 body {
   @apply bg-gradient-to-br from-blue-50 to-purple-100 text-gray-800;
   font-family: 'Inter', sans-serif;
   color-scheme: light; /* บังคับ light mode */
+  font-family: "Sarabun", sans-serif !important;
 }
 
 :root {
