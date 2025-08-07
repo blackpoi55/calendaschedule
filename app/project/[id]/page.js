@@ -7,23 +7,39 @@ import Swal from "sweetalert2";
 import dayjs from "dayjs";
 import { projectsData, memberOptions, roleOptions } from "@/lib/mockData";
 import GanttChart from "@/components/GanttChart";
+import { addtask, deletetask, edittask, getproJects } from "@/action/api";
 
 export default function ProjectDetail() {
     const { id } = useParams();
-    const project = projectsData.find((p) => p.id === id);
     const router = useRouter();
-    const [tasks, setTasks] = useState(project?.details || []);
+    const [tasks, setTasks] = useState([]);
     const [openTaskModal, setOpenTaskModal] = useState(false);
     const [editTask, setEditTask] = useState(null);
     const [selectedTaskIndex, setSelectedTaskIndex] = useState(null);
-    const [filteredTasks, setFilteredTasks] = useState(project?.details || []); // ✅ ให้เริ่มต้นด้วย task ทั้งหมด
+    const [filteredTasks, setFilteredTasks] = useState([]); // ✅ ให้เริ่มต้นด้วย task ทั้งหมด
     const [preFillDates, setPreFillDates] = useState(null);
     const calendarRef = useRef(null);
-    const projectEnd = dayjs(project?.endDate || null);
+    const [projectEnd, setprojectEnd] = useState(null)
     const [modeChoose, setmodeChoose] = useState("Calenda");
-
+    const [project, setproject] = useState({})
     if (!project) return <div className="text-center mt-20 text-red-500 text-xl">❌ ไม่พบโปรเจค</div>;
-
+    useEffect(() => {
+        refresh()
+    }, [])
+    const refresh = async () => {
+        let data = await getproJects()
+        console.log(data)
+        if (data?.data && data?.data.length > 0) {
+            let filterdata = data?.data.find((p) => p.id === id)
+            setproject(filterdata)
+            setTasks(filterdata?.details || []);
+            setFilteredTasks(filterdata?.details || []);
+            setprojectEnd(dayjs(filterdata?.endDate));
+        }
+        else {
+            setproject({})
+        }
+    }
     // ✅ Sync task ทั้งหมดทุกครั้งที่ tasks เปลี่ยน
     useEffect(() => {
         setFilteredTasks(tasks);
@@ -40,14 +56,24 @@ export default function ProjectDetail() {
 
     const getMemberDetail = (name) => memberOptions.find((m) => m.label === name);
 
-    const handleSaveTask = (task) => {
-        if (editTask !== null) {
-            setTasks((prev) => prev.map((t, idx) => (idx === editTask ? task : t)));
-            setEditTask(null);
-        } else {
-            setTasks((prev) => [...prev, task]);
+    const handleSaveTask = async (task) => {
+        let res
+        let { id, ...taskData } = task
+        if (id) {
+            res = await edittask(id, taskData)
         }
-        setPreFillDates(null);
+        else {
+            res = await addtask(taskData)
+        }
+        if (!res?.error) {
+            Swal.fire("สำเร็จ", editTask ? "แก้ไข Task เรียบร้อย!" : "เพิ่ม Task ใหม่เรียบร้อย!", "success");
+            setOpenTaskModal(false);
+            setEditTask(null);
+            refresh();
+        }
+        else {
+            Swal.fire("ผิดพลาด", res?.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล", "error");
+        }
     };
 
     const handleDeleteTask = (index) => {
@@ -62,8 +88,12 @@ export default function ProjectDetail() {
             cancelButtonText: "ยกเลิก"
         }).then((result) => {
             if (result.isConfirmed) {
-                setTasks((prev) => prev.filter((_, idx) => idx !== index));
-                Swal.fire("ลบสำเร็จ!", "ตำแหน่งถูกลบเรียบร้อยแล้ว", "success");
+                let res = deletetask(id)
+                if (res?.error) {
+                    Swal.fire("ลบสำเร็จ!", "ตำแหน่งถูกลบเรียบร้อยแล้ว", "success");
+                    refresh();
+                }
+
             }
         });
     };

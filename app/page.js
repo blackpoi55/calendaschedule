@@ -7,12 +7,12 @@ import dayjs from "dayjs";
 import isBetween from "dayjs/plugin/isBetween";
 import { projectsData, memberOptions, teamOptions, roleOptions, statusOptions } from "@/lib/mockData";
 import Swal from "sweetalert2";
-import { getproJects } from "@/action/api";
+import { addproject, deleteproject, editproject, getproJects } from "@/action/api";
 
 dayjs.extend(isBetween);
 
 export default function Home() {
-  const [projects, setProjects] = useState(projectsData);
+  const [projects, setProjects] = useState();
   const [openModal, setOpenModal] = useState(false);
   const [editProject, setEditProject] = useState(null);
   const router = useRouter();
@@ -27,11 +27,30 @@ export default function Home() {
     refresh()
   }, [])
 
-  const handleSave = (project) => {
-    if (editProject) {
-      setProjects(projects.map((p) => (p.id === project.id ? project : p)));
-    } else {
-      setProjects([...projects, project]);
+  const handleSave = async (project) => {
+    console.log(project)
+    let res 
+    let val = {
+      "name": project.name,
+      "team": project.team,
+      "startDate": project.startDate,
+      "endDate": project.endDate,
+      "totalDays": project.totalDays,
+    }
+    if (project.id) {
+      res = await editproject(project.id, val)
+    }
+    else {
+      res = await addproject(val)
+    }
+    if (!res?.error) {
+      Swal.fire("สำเร็จ", editProject ? "แก้ไขโปรเจคเรียบร้อย!" : "เพิ่มโปรเจคใหม่เรียบร้อย!", "success");
+      setOpenModal(false);
+      setEditProject(null);
+      refresh();
+    }
+    else {
+      Swal.fire("ผิดพลาด", res?.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล", "error");
     }
   };
 
@@ -44,6 +63,13 @@ export default function Home() {
   };
   const refresh = async () => {
     let data = await getproJects()
+    console.log(data)
+    if (data?.data && data?.data.length > 0) {
+      setProjects(data?.data)
+    }
+    else {
+      setProjects([])
+    }
   }
   const handleDelete = (id) => {
     Swal.fire({
@@ -57,8 +83,11 @@ export default function Home() {
       cancelButtonText: "ยกเลิก",
     }).then((result) => {
       if (result.isConfirmed) {
-        setProjects((prev) => prev.filter((p) => p.id !== id));
-        Swal.fire("ลบสำเร็จ!", "โปรเจคถูกลบเรียบร้อยแล้ว", "success");
+        let res = deleteproject(id)
+        if (res?.error) {
+          Swal.fire("ลบสำเร็จ!", "โปรเจคถูกลบเรียบร้อยแล้ว", "success");
+          refresh();
+        }
       }
     });
   };
@@ -83,7 +112,7 @@ export default function Home() {
     }
 
     // 2️⃣ หา Task ที่มีวันสิ้นสุดเกินวันสิ้นสุดโปรเจค
-    const overdueTasks = project.details.filter((task) =>
+    const overdueTasks = (project.details || []).filter((task) =>
       dayjs(task.end).isAfter(end, "day")
     );
 
@@ -117,7 +146,7 @@ export default function Home() {
     }
 
     // 4️⃣ กำลังดำเนินการ (ดูจาก Task ที่อยู่ระหว่างวัน)
-    const currentTasks = project.details.filter((task) =>
+    const currentTasks = (project.details || []).filter((task) =>
       today.isBetween(dayjs(task.start), dayjs(task.end), "day", "[]")
     );
 
@@ -167,7 +196,7 @@ export default function Home() {
   };
 
   const filteredAndSortedProjects = useMemo(() => {
-    let filtered = projects.filter((p) => {
+    let filtered = (projects || []).filter((p) => {
       const projectStatus = getCurrentStatus(p).label; // ใช้ label จริงสำหรับ filter
 
 
@@ -175,7 +204,7 @@ export default function Home() {
       const matchesStatus =
         !statusFilter ||
         (statusFilter === "กำลังดำเนินการ"
-          ? projectStatus.includes("กำลังทำ") || projectStatus === "รอขั้นตอนถัดไป"
+          ? projectStatus.includes("กำลังดำเนินการ") || projectStatus === "รอขั้นตอนถัดไป"
           : projectStatus === statusFilter);
       const matchesTeam =
         !teamFilter || p.team.toLowerCase().includes(teamFilter.toLowerCase());
@@ -194,7 +223,7 @@ export default function Home() {
     });
 
     if (sortConfig.key) {
-      filtered.sort((a, b) => {
+      (filtered || []).sort((a, b) => {
         if (sortConfig.key === "totalDays") {
           return sortConfig.direction === "asc"
             ? a.totalDays - b.totalDays
@@ -247,7 +276,7 @@ export default function Home() {
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="">ทั้งหมด</option>
-              {statusOptions
+              {(statusOptions || [])
                 .filter((s) => s.showindropdown)
                 .map((status, idx) => (
                   <option
@@ -274,7 +303,7 @@ export default function Home() {
               onChange={(e) => setTeamFilter(e.target.value)}
             >
               <option value="">ทั้งหมด</option>
-              {teamOptions
+              {(teamOptions || [])
                 .filter((m) => m.showindropdown)
                 .map((team, idx) => (
                   <option key={idx} value={team.label}>
@@ -293,7 +322,7 @@ export default function Home() {
               onChange={(e) => setMemberFilter(e.target.value)}
             >
               <option value="">ทั้งหมด</option>
-              {memberOptions
+              {(memberOptions || [])
                 .filter((m) => m.showindropdown)
                 .map((member, idx) => (
                   <option key={idx} value={member.label}>

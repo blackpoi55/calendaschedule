@@ -72,7 +72,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
         }
 
         const project = {
-            id: editData ? editData.id : Date.now().toString(),
+            id: editData ? editData.id : "",
             name,
             team,
             startDate,
@@ -81,9 +81,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
             details: editData ? editData.details : [],
         };
 
-        onSave(project);
-        Swal.fire("สำเร็จ", editData ? "แก้ไขโปรเจคเรียบร้อย!" : "เพิ่มโปรเจคใหม่เรียบร้อย!", "success");
-        onClose();
+        onSave(project); 
     };
 
     const filteredTeams = teamOptions

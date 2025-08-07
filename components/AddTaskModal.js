@@ -92,10 +92,7 @@ export default function AddTaskModal({ onClose, onSave, editData, preFillDates }
             end: endDate.format("YYYY-MM-DD"),
             member,
             remark
-        });
-
-        Swal.fire("สำเร็จ", editData ? "แก้ไขตำแหน่งเรียบร้อย!" : "เพิ่มตำแหน่งเรียบร้อย!", "success");
-        onClose();
+        }); 
     };
 
     const filteredRoles = roleOptions.filter((r) =>
