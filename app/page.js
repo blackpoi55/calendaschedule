@@ -29,7 +29,7 @@ export default function Home() {
 
   const handleSave = async (project) => {
     console.log(project)
-    let res 
+    let res
     let val = {
       "name": project.name,
       "team": project.team,
