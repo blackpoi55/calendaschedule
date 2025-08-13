@@ -3,7 +3,7 @@ import { useState, forwardRef, useImperativeHandle } from "react";
 import { Calendar, dayjsLocalizer } from "react-big-calendar";
 import dayjs from "dayjs";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import { teamOptions, roleOptions } from "@/lib/mockData";
+import {roleOptions } from "@/lib/mockData";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 
@@ -11,11 +11,6 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const localizer = dayjsLocalizer(dayjs);
-
-const getTeamColor = (teamName) => {
-  const team = teamOptions.find((t) => t.label === teamName);
-  return team ? team.color : "#c084fc";
-};
 
 const getRoleColor = (roleName) => {
   const role = roleOptions.find((r) => r.label === roleName);
@@ -39,8 +34,7 @@ const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
     title: `${t.role} (${t.days} วัน)`,
     start: dayjs.tz(t.start, "Asia/Bangkok").toDate(),
     end: dayjs.tz(t.end, "Asia/Bangkok").add(1, "day").toDate(), // ✅ บวก 1 วัน
-    allDay: true,
-    team: t.team || "",
+    allDay: true, 
     role: t.role || "",
     remark: t.remark || "",
     originalTask: t,
@@ -111,7 +105,7 @@ const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
         style={{ height: "100%", borderRadius: "12px" }}
         eventPropGetter={(event) => ({
           style: {
-            background: `linear-gradient(135deg, ${getRoleColor(event.role)}, ${getTeamColor(event.team)})`,
+            background: `linear-gradient(135deg, ${getRoleColor(event.role)})`,
             color: "white",
             borderRadius: "10px",
             padding: "4px 6px",

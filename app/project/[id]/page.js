@@ -134,8 +134,6 @@ export default function ProjectDetail() {
                         <button onClick={() => setmodeChoose("GanttChart")} className={`rounded-r-lg p-2 ${modeChoose == "GanttChart" ? " bg-gradient-to-r from-purple-300 to-pink-400 text-white " : " bg-gray-500 text-white "}`}>GanttChart</button>
                     </div>
                 </div>
-
-                <p className="mb-2"><span className="font-semibold">ทีม:</span> {project.team}</p>
                 <p className="mb-2">
                     <span className="font-semibold">ระยะเวลา:</span> {formatDate(project.startDate)} - {formatDate(project.endDate)}
                 </p>

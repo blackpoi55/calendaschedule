@@ -1,27 +1,22 @@
 import { useState, useEffect } from "react";
 import dayjs from "dayjs";
-import Swal from "sweetalert2";
-import { teamOptions } from "@/lib/mockData";
+import Swal from "sweetalert2"; 
 
 export default function AddProjectModal({ onClose, onSave, editData }) {
     const today = dayjs();
     const [formData, setFormData] = useState({
-        name: "",
-        team: "",
+        name: "", 
         startDate: today.format("YYYY-MM-DD"),
         endDate: today.add(7, "day").format("YYYY-MM-DD"),
         totalDays: 8, // ✅ เพิ่มช่องวัน
-    });
-    const [teamFilter, setTeamFilter] = useState("");
-    const [showDropdown, setShowDropdown] = useState(false);
+    }); 
 
     useEffect(() => {
         if (editData) {
             const start = dayjs(editData.startDate);
             const end = dayjs(editData.endDate);
             setFormData({
-                name: editData.name || "",
-                team: editData.team || "",
+                name: editData.name || "", 
                 startDate: start.format("YYYY-MM-DD"),
                 endDate: end.format("YYYY-MM-DD"),
                 totalDays: end.diff(start, "day") + 1,
@@ -59,9 +54,9 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
 
     // ✅ Save
     const handleSave = () => {
-        const { name, team, startDate, endDate, totalDays } = formData;
+        const { name, startDate, endDate, totalDays } = formData;
 
-        if (!name || !team || !startDate || !endDate) {
+        if (!name || !startDate || !endDate) {
             Swal.fire("ผิดพลาด", "กรุณากรอกข้อมูลให้ครบทุกช่อง!", "error");
             return;
         }
@@ -73,8 +68,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
 
         const project = {
             id: editData ? editData.id : "",
-            name,
-            team,
+            name, 
             startDate,
             endDate,
             totalDays,
@@ -83,10 +77,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
 
         onSave(project); 
     };
-
-    const filteredTeams = teamOptions
-        .filter((t) => t.showindropdown)
-        .filter((t) => t.label.toLowerCase().includes(teamFilter.toLowerCase()));
+ 
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -104,46 +95,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
                         onChange={(e) => handleChange("name", e.target.value)}
                     />
 
-                    {/* ✅ Dropdown ทีม */}
-                    <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="เลือกหรือพิมพ์ชื่อทีม"
-                            className="w-full p-3 border rounded-lg focus:ring focus:ring-purple-300"
-                            value={formData.team}
-                            onChange={(e) => {
-                                handleChange("team", e.target.value);
-                                setTeamFilter(e.target.value);
-                                setShowDropdown(true);
-                            }}
-                            onFocus={() => setShowDropdown(true)}
-                        />
-                        {showDropdown && (
-                            <ul className="absolute w-full bg-white border rounded-lg mt-1 max-h-40 overflow-y-auto shadow-md z-50">
-                                {filteredTeams.length > 0 ? (
-                                    filteredTeams.map((t, idx) => (
-                                        <li
-                                            key={idx}
-                                            onClick={() => {
-                                                handleChange("team", t.label);
-                                                setTeamFilter("");
-                                                setShowDropdown(false);
-                                            }}
-                                            className="px-4 py-2 hover:bg-purple-100 cursor-pointer flex items-center justify-between"
-                                        >
-                                            <span>{t.label}</span>
-                                            <span
-                                                className="w-4 h-4 rounded-full"
-                                                style={{ backgroundColor: t.color }}
-                                            ></span>
-                                        </li>
-                                    ))
-                                ) : (
-                                    <li className="px-4 py-2 text-gray-500">ไม่พบทีม</li>
-                                )}
-                            </ul>
-                        )}
-                    </div>
+                
                     {/* ✅ จำนวนวัน */}
                     <input
                         type="number"

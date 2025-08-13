@@ -92,7 +92,7 @@ export default function AddTaskModal({ onClose, onSave, editData, preFillDates }
             end: endDate.format("YYYY-MM-DD"),
             member,
             remark
-        }); 
+        });
     };
 
     const filteredRoles = roleOptions.filter((r) =>
@@ -203,7 +203,17 @@ export default function AddTaskModal({ onClose, onSave, editData, preFillDates }
                             ))}
                         </div>
                     </div>
-
+                    {/* 📝 Detail */}
+                    <div>
+                        <p className="font-semibold mb-2">รายละเอียด (Detail):</p>
+                        <textarea
+                            placeholder="เพิ่มหมายเหตุ..."
+                            className="w-full p-3 border rounded-lg focus:ring focus:ring-purple-300 resize-none"
+                            rows="3"
+                            value={data.detail}
+                            onChange={(e) => handleChange("detail", e.target.value)}
+                        />
+                    </div>
                     {/* 📝 Remark */}
                     <div>
                         <p className="font-semibold mb-2">หมายเหตุ (Remark):</p>
