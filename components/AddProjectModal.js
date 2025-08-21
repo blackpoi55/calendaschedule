@@ -101,7 +101,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
                         type="number"
                         className="w-full p-3 border rounded-lg focus:ring focus:ring-purple-300"
                         placeholder="จำนวนวัน (auto)"
-                        value={formData.totalDays}
+                        value={formData.totalDays||0}
                         onChange={(e) => handleChange("totalDays", e.target.value)}
                     />
                     {/* ✅ วันที่ + จำนวนวัน */}

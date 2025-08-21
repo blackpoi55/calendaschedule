@@ -31,65 +31,21 @@ export const getproJects = () => {
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editproject = (id, data) => {
-    // return PUT("api" + id, data)
-    console.log("editproject", data)
-    //เดี๋ยวส่ง id ของ project ที่ url ให้
-    let body = {
-        "name": "editproject page1",
-        "team": "ทีม A",
-        "startDate": "2025-08-07",
-        "endDate": "2025-08-14",
-        "totalDays": 8
-    }
+    return PUT("/equipments/booking/proJects/" + id, data) 
 }
 export const addproject = (data) => {
     return POST("/equipments/booking/proJects", data)
-    console.log("addproject", data)
-    let body = {
-        "name": "addproject page1",
-        "team": "ทีม A",
-        "startDate": "2025-08-07",
-        "endDate": "2025-08-14",
-        "totalDays": 8
-    }
 }
 export const deleteproject = (id) => {
-    // return DELETE("api"+id)
-    console.log("deleteproject", id)
-    //เดี๋ยวส่ง id ของ project ที่ url ให้
+    return DELETE("/equipments/booking/proJects/"+id) 
 }
 
 export const edittask = (id, data) => {
-    // return PUT("api" + id, data)
-    console.log("edittask", data)
-    //เดี๋ยวส่ง id ของ task ที่ url ให้
-    let body = {
-        "role": "SA",
-        "days": 15,
-        "start": "2025-08-01",
-        "end": "2025-08-15",
-        "member": [
-            "สมหญิง"
-        ],
-        "remark": ""
-    }
+    return PUT("/equipments/booking/projectTask/" + id, data)
 }
 export const addtask = (data) => {
-    // return POST("api", data)
-    console.log("addtask", data)
-    let body = {
-        "role": "SA",
-        "days": 15,
-        "start": "2025-08-01",
-        "end": "2025-08-15",
-        "member": [
-            "สมหญิง"
-        ],
-        "remark": ""
-    }
+    return POST("/equipments/booking/projectTask", data)
 }
 export const deletetask = (id) => {
-    // return DELETE("api"+id)
-    console.log("deletetask", id)
-    //เดี๋ยวส่ง id ของ tsask ที่ url ให้
+    return DELETE("/equipments/booking/projectTask/"+id) 
 } 
