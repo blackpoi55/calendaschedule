@@ -1,51 +1,51 @@
 import { GET, POST, DELETE, PUT } from "@/components/apicomponent/api";
 
 export const getmember = () => {
-    return GET("/equipments/booking/projectUser")
+    return GET("/projectUser")
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editmember = (id, data) => {
-    return PUT("/equipments/booking/projectUser/" + id, data)
+    return PUT("/projectUser/" + id, data)
 }
 export const addmember = (data) => {
-    return POST("/equipments/booking/projectUser", data)
+    return POST("/projectUser", data)
 }
 export const deletemember = (id) => {
-    return DELETE("/equipments/booking/projectUser/"+id)
+    return DELETE("/projectUser/"+id)
 }
 export const getrole = () => {
-    return GET("/equipments/booking/projectRole")
+    return GET("/projectRole")
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editrole = (id, data) => {
-    return PUT("/equipments/booking/projectRole/" + id, data)
+    return PUT("/projectRole/" + id, data)
 }
 export const addrole = (data) => {
-    return POST("/equipments/booking/projectRole", data)
+    return POST("/projectRole", data)
 }
 export const deleterole = (id) => {
-    return DELETE("/equipments/booking/projectRole/"+id)
+    return DELETE("/projectRole/"+id)
 }
 export const getproJects = () => {
-    return GET("/equipments/booking/projectTaskAssignment/grouped/getTaskAssignments")
+    return GET("/projectTaskAssignment/grouped/getTaskAssignments")
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editproject = (id, data) => {
-    return PUT("/equipments/booking/proJects/" + id, data) 
+    return PUT("/proJects/" + id, data) 
 }
 export const addproject = (data) => {
-    return POST("/equipments/booking/proJects", data)
+    return POST("/proJects", data)
 }
 export const deleteproject = (id) => {
-    return DELETE("/equipments/booking/proJects/"+id) 
+    return DELETE("/proJects/"+id) 
 }
 
 export const edittask = (id, data) => {
-    return PUT("/equipments/booking/projectTask/" + id, data)
+    return PUT("/projectTask/" + id, data)
 }
 export const addtask = (data) => {
-    return POST("/equipments/booking/projectTask", data)
+    return POST("/projectTask", data)
 }
 export const deletetask = (id) => {
-    return DELETE("/equipments/booking/projectTask/"+id) 
+    return DELETE("/projectTask/"+id) 
 } 

@@ -1,131 +1,284 @@
 "use client";
-import React from "react";
+
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
+import "gantt-task-react/dist/index.css";
+import { Gantt, ViewMode } from "gantt-task-react";
+
 dayjs.extend(isoWeek);
 
-export default function GanttChart({ tasks, project }) {
-  if (!project || !tasks) return <div className="p-4">❌ ไม่มีข้อมูลโปรเจค</div>;
+export default function GanttTaskReact() {
+  const [viewMode, setViewMode] = useState(ViewMode.Week);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+  const [expanded, setExpanded] = useState(true);
 
-  const today = dayjs();
-  const projectEnd = dayjs(project.endDate);
-  const minDate = dayjs(project.startDate);
-  const maxDate = dayjs(
-    tasks.length > 0
-      ? Math.max(...tasks.map((t) => new Date(t.end)))
-      : project.endDate
-  );
+  const API_URL =
+    "https://taxtrail.telecorpthailand.com/api/v1/projectTaskAssignment/grouped/getTaskAssignments";
 
-  const getWeekOfMonth = (date) => {
-    const startOfMonth = date.startOf("month");
-    return Math.ceil((date.date() + startOfMonth.day()) / 7);
+  // ใช้ฟังก์ชันช่วย parse วันที่แบบปลอดภัย
+  const toDate = (v, fallback) => {
+    try {
+      if (!v && fallback) return new Date(fallback);
+      if (!v) return null;
+      if (v instanceof Date) return v;
+      if (typeof v === "number") return new Date(v);
+      const d = dayjs(v);
+      return d.isValid() ? d.toDate() : fallback ? new Date(fallback) : null;
+    } catch {
+      return fallback ? new Date(fallback) : null;
+    }
   };
 
-  const weeks = [];
-  let current = minDate.startOf("week");
-  while (current.isBefore(maxDate) || current.isSame(maxDate, "week")) {
-    weeks.push({
-      label: `สัปดาห์ ${getWeekOfMonth(current)} (${current.format("MMM YYYY")})`,
-      start: current.clone(),
-      end: current.clone().endOf("week"),
-      isCurrent: today.isBetween(current.clone().startOf("week"), current.clone().endOf("week"), "day", "[]"),
-    });
-    current = current.add(1, "week");
-  }
+  // แปลง payload -> tasks ของ gantt-task-react พร้อมเติม start/end ถ้าขาด
+  const normalizeAssignmentsToTasks = useCallback((payload) => {
+    const list = Array.isArray(payload) ? payload : [];
+    const out = [];
 
-  const getBarStyle = (start, end) => {
-    const totalWeeks = weeks.length;
-    const startIndex = weeks.findIndex((w) =>
-      dayjs(start).isBetween(w.start, w.end, "day", "[]")
-    );
-    const endIndex = weeks.findIndex((w) =>
-      dayjs(end).isBetween(w.start, w.end, "day", "[]")
-    );
-    return {
-      left: `${(startIndex / totalWeeks) * 100}%`,
-      width: `${((endIndex - startIndex + 1) / totalWeeks) * 100}%`,
+    for (const group of list) {
+      const projectId = String(
+        group?.projectId ?? group?.project_id ?? group?.id ?? group?.projectCode ?? group?.project ?? Math.random()
+      );
+      const projectName =
+        group?.projectName ?? group?.project_name ?? group?.name ?? group?.title ?? `Project ${projectId}`;
+
+      const items = Array.isArray(group?.items ?? group?.tasks ?? group?.children)
+        ? (group?.items ?? group?.tasks ?? group?.children)
+        : [];
+
+      // คำนวณช่วงรวมของโปรเจกต์
+      const itemStarts = items
+        .map((t) => toDate(t?.startDate ?? t?.start ?? t?.start_time ?? t?.begin ?? t?.plannedStart))
+        .filter(Boolean);
+      const itemEnds = items
+        .map((t) => toDate(t?.endDate ?? t?.end ?? t?.end_time ?? t?.finish ?? t?.plannedEnd))
+        .filter(Boolean);
+
+      const projectStart = itemStarts.length
+        ? itemStarts.reduce((min, d) => (d < min ? d : min), itemStarts[0])
+        : dayjs().startOf("week").toDate();
+      const projectEnd = itemEnds.length
+        ? itemEnds.reduce((max, d) => (d > max ? d : max), itemEnds[0])
+        : dayjs(projectStart).add(2, "week").toDate();
+
+      out.push({
+        id: `project-${projectId}`,
+        type: "project",
+        name: projectName,
+        start: projectStart,
+        end: projectEnd,
+        progress: 0,
+        isDisabled: true,
+      });
+
+      for (const t of items) {
+        const id = String(t?.id ?? t?.taskId ?? t?.assignmentId ?? t?.code ?? Math.random());
+        const name = t?.name ?? t?.taskName ?? t?.title ?? t?.role ?? "Task (ไม่มีชื่อ)";
+        const start = toDate(
+          t?.startDate ?? t?.start ?? t?.start_time ?? t?.begin ?? t?.plannedStart,
+          projectStart
+        ) ?? projectStart;
+        const end = toDate(
+          t?.endDate ?? t?.end ?? t?.end_time ?? t?.finish ?? t?.plannedEnd,
+          dayjs(start).add(1, "day").toDate()
+        ) ?? dayjs(start).add(1, "day").toDate();
+
+        const progressRaw = Number(t?.progress ?? t?.percent ?? t?.completed ?? 0);
+        const progress = Number.isFinite(progressRaw)
+          ? Math.max(0, Math.min(100, progressRaw))
+          : 0;
+
+        const role = t?.role ?? t?.position ?? "";
+        const assignees = Array.isArray(t?.assignees ?? t?.members ?? t?.member ?? t?.people)
+          ? (t?.assignees ?? t?.members ?? t?.member ?? t?.people)
+          : [];
+        const labelTail = assignees.length
+          ? ` • 👥 ${assignees.join(", ")}`
+          : role
+          ? ` • ${role}`
+          : "";
+
+        out.push({
+          id,
+          type: "task",
+          name: `${name}${labelTail}`,
+          start,
+          end,
+          progress,
+          project: `project-${projectId}`,
+          isDisabled: false,
+        });
+      }
+    }
+
+    // Fallback mock ถ้าไม่มีอะไรเลย
+    if (out.length === 0) {
+      const today = dayjs();
+      out.push(
+        {
+          id: "project-mock",
+          type: "project",
+          name: "ตัวอย่างโปรเจกต์ (Mock)",
+          start: today.startOf("week").toDate(),
+          end: today.add(3, "week").endOf("week").toDate(),
+          progress: 0,
+          isDisabled: true,
+        },
+        {
+          id: "mock-1",
+          type: "task",
+          name: "วิเคราะห์ความต้องการ • SA",
+          start: today.startOf("week").toDate(),
+          end: today.add(5, "day").toDate(),
+          progress: 60,
+          project: "project-mock",
+        },
+        {
+          id: "mock-2",
+          type: "task",
+          name: "พัฒนา Frontend • 👥 A, B",
+          start: today.add(3, "day").toDate(),
+          end: today.add(2, "week").toDate(),
+          progress: 30,
+          project: "project-mock",
+        }
+      );
+    }
+
+    return out;
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch(API_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const normalized = normalizeAssignmentsToTasks(json?.data ?? json?.records ?? json);
+      setTasks(normalized);
+    } catch (e) {
+      console.error("Fetch error:", e);
+      setFetchError("โหลดข้อมูลไม่สำเร็จ (อาจติด CORS/เครือข่าย) – แสดงข้อมูลตัวอย่างแทน");
+      setTasks(normalizeAssignmentsToTasks([]));
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizeAssignmentsToTasks]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ปรับให้ select คืนค่าเป็น enum ที่ถูกต้อง
+  const handleViewChange = (val) => {
+    const map = {
+      Day: ViewMode.Day,
+      Week: ViewMode.Week,
+      Month: ViewMode.Month,
     };
+    setViewMode(map[val] ?? ViewMode.Week);
   };
 
-  const roleColors = {
-    SA: "bg-purple-500",
-    Frontend: "bg-blue-500",
-    Backend: "bg-green-500",
-    Tester: "bg-red-500",
-    "UX/UI": "bg-yellow-500",
+  // Tooltip ปลอดภัยต่อ undefined
+  const SafeTooltip = ({ task }) => {
+    if (!task) return null;
+    const start = task.start ? dayjs(task.start).format("DD MMM YYYY") : "-";
+    const end = task.end ? dayjs(task.end).format("DD MMM YYYY") : "-";
+    return (
+      <div className="p-2 text-sm">
+        <div className="font-semibold">{task.name ?? "Task"}</div>
+        <div>📅 {start} – {end}</div>
+        {typeof task.progress === "number" && (
+          <div>✅ Progress: {Math.round(task.progress)}%</div>
+        )}
+      </div>
+    );
   };
 
-  const todayIndex = weeks.findIndex((w) =>
-    today.isBetween(w.start, w.end, "day", "[]")
-  );
-  const todayLinePosition = todayIndex >= 0 ? (todayIndex / weeks.length) * 100 : null;
+  const onExpanderClick = (task) => {
+    if (task?.type === "project") setExpanded((prev) => !prev);
+  };
+
+  const onDoubleClick = (task) => {
+    if (!task) return;
+    const start = task.start ? dayjs(task.start).format("DD/MM/YYYY") : "-";
+    const end = task.end ? dayjs(task.end).format("DD/MM/YYYY") : "-";
+    alert(`รายละเอียดงาน:\n${task.name}\n${start} - ${end}`);
+  };
 
   return (
-    <div className="p-4 relative">
-      <h2 className="text-2xl font-bold mb-4 text-purple-700">📊 Gantt Chart (สัปดาห์)</h2>
-      <div className="border rounded-xl shadow-lg bg-white relative">
-        {/* Header */}
-        <div className="grid grid-cols-12 border-b bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-10">
-          <div className="col-span-3 p-3 font-semibold border-r text-gray-700 bg-gray-50">🗂 Task / Role</div>
-          <div className="col-span-9 flex relative">
-            {weeks.map((w, idx) => (
-              <div
-                key={idx}
-                className={`flex-1 text-center p-3 border-l text-xs ${w.isCurrent ? "bg-blue-50" : ""}`}
-              >
-                <span className={`${w.isCurrent ? "font-bold text-blue-700" : "text-gray-600"}`}>
-                  {w.label}
-                </span>
-              </div>
-            ))}
-            {todayLinePosition !== null && (
-              <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20" style={{ left: `${todayLinePosition}%` }} />
-            )}
-          </div>
+    <div className="p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h2 className="text-2xl font-bold text-purple-700">📊 Gantt Chart (gantt-task-react)</h2>
+        <div className="ml-auto flex items-center gap-2">
+          <label className="text-gray-600">มุมมอง:</label>
+          <select
+            className="border rounded px-2 py-1"
+            value={
+              viewMode === ViewMode.Day ? "Day" :
+              viewMode === ViewMode.Month ? "Month" : "Week"
+            }
+            onChange={(e) => handleViewChange(e.target.value)}
+          >
+            <option value="Day">Day</option>
+            <option value="Week">Week</option>
+            <option value="Month">Month</option>
+          </select>
+
+          <button
+            onClick={fetchData}
+            className="border rounded px-3 py-1 bg-white hover:bg-gray-50"
+            title="โหลดข้อมูลใหม่"
+          >
+            🔄 Refresh
+          </button>
         </div>
-
-        {/* Tasks */}
-        {tasks.map((task, idx) => {
-          const isOverdue = dayjs(task.end).isAfter(projectEnd, "day");
-          const overdueDays = isOverdue ? dayjs(task.end).diff(projectEnd, "day") : 0;
-
-          return (
-            <div key={idx} className="flex border-b hover:bg-purple-50 transition">
-              {/* Left Panel */}
-              <div className="w-1/4 p-3 border-r bg-gray-50">
-                <div className="font-semibold text-gray-800 flex items-center gap-1">
-                  {task.role}
-                  {isOverdue && <span className="text-red-500 text-lg">⚠</span>}
-                </div>
-                {task.member.length > 0 && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    👥 {task.member.join(", ")}
-                  </div>
-                )}
-              </div>
-
-              {/* Gantt Area */}
-              <div className="relative flex-1 h-14 border-l bg-white">
-                {/* เส้นแบ่งสัปดาห์ */}
-                {weeks.map((_, i) => (
-                  <div key={i} className="absolute top-0 bottom-0 border-l border-gray-200" style={{ left: `${(i / weeks.length) * 100}%` }} />
-                ))}
-
-                {/* Task Bar */}
-                <div
-                  className={`absolute text-white text-xs font-semibold rounded-lg shadow-md px-3 py-1 flex items-center justify-center ${
-                    isOverdue ? "bg-red-600 animate-pulse" : roleColors[task.role] || "bg-gray-400"
-                  }`}
-                  style={{ ...getBarStyle(task.start, task.end), top: "8px" }}
-                >
-                  {task.role}
-                  {isOverdue && <span className="ml-1 text-[10px]">🚨 เกิน {overdueDays} วัน</span>}
-                </div>
-              </div>
-            </div>
-          );
-        })}
       </div>
+
+      {loading && (
+        <div className="p-3 rounded bg-yellow-50 border text-yellow-700">
+          ⏳ กำลังโหลดข้อมูลจากเซิร์ฟเวอร์...
+        </div>
+      )}
+
+      {fetchError && (
+        <div className="p-3 mt-2 rounded bg-red-50 border text-red-700">{fetchError}</div>
+      )}
+
+      {/* กันเคส tasks ว่าง หรือมี task ที่ไม่มีวันที่ */}
+      {tasks.length > 0 ? (
+        <div className="rounded-xl overflow-hidden border bg-white">
+          <Gantt
+            tasks={tasks}
+            viewMode={viewMode}
+            listCellWidth="240"
+            columnWidth={
+              viewMode === ViewMode.Month ? 300 :
+              viewMode === ViewMode.Week ? 200 : 65
+            }
+            todayColor="#ff4d4f"
+            TooltipContent={SafeTooltip}
+            onExpanderClick={onExpanderClick}
+            onDoubleClick={onDoubleClick}
+            ganttHeight={540}
+            barCornerRadius={6}
+            barFill={60}
+            showToday={true}
+            key={expanded ? "expand" : "collapse"}
+          />
+        </div>
+      ) : (
+        !loading && (
+          <div className="p-3 rounded bg-gray-50 border text-gray-600">
+            ไม่มีข้อมูลงานที่จะแสดง
+          </div>
+        )
+      )}
+
+      <div className="text-xs text-gray-500 mt-3">แหล่งข้อมูล: {API_URL}</div>
     </div>
   );
 }
