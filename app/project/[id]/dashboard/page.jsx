@@ -3,7 +3,6 @@ import React, { useMemo } from 'react'
 
 
 export default function DashboardPage() {
-    // ใช้ชุดข้อมูลเดียวกับ Kanban (คัดมาบางส่วน)
     const tasks = useMemo(() => [
         { id: 1, status: 'TODO' }, { id: 2, status: 'DOING' }, { id: 3, status: 'DOING' }, { id: 4, status: 'REVIEW' }, { id: 5, status: 'DONE' },
     ], [])
