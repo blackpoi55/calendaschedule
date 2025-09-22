@@ -9,12 +9,13 @@ import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  horizontalListSortingStrategy,
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
 // =====================================
-// Presets (สีกับไอคอนคอลัมน์)
+// Presets (สี/ไอคอนสำหรับคอลัมน์)
 // =====================================
 const COLUMN_THEMES = [
   { key: 'slate',  name: 'Slate',  bg: 'bg-slate-50',  border: 'border-slate-200',  dot: 'bg-slate-400'  },
@@ -25,10 +26,8 @@ const COLUMN_THEMES = [
   { key: 'violet', name: 'Violet', bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-400' },
   { key: 'rose',   name: 'Rose',   bg: 'bg-rose-50',   border: 'border-rose-200',   dot: 'bg-rose-400'   },
 ]
-
 const COLUMN_ICONS = ['📋','⚙️','🧪','✅','📝','🚧','🔍','💡','🎯','🧱']
 
-// default style เมื่อคอลัมน์ใหม่ไม่มี mapping
 const DEFAULT_COL_STYLE = 'bg-slate-50 border-slate-200'
 const defaultDot = 'bg-slate-400'
 
@@ -41,7 +40,6 @@ const INITIAL_STATUSES = [
   { key: 'REVIEW', label: 'Review',  theme: 'amber',  icon: '🧪' },
   { key: 'DONE',   label: 'Done',    theme: 'emerald',icon: '✅' },
 ]
-
 const initialTasks = [
   { id: 1, title: 'กำหนดขอบเขตโครงการ', status: 'TODO', position: 0, labels: ['PM'], assignee: 'Anong', createdAt: Date.now(), updatedAt: Date.now(), note: '' },
   { id: 2, title: 'ออกแบบฐานข้อมูล', status: 'DOING', position: 0, labels: ['DB'], assignee: 'Somchai', createdAt: Date.now(), updatedAt: Date.now(), note: '' },
@@ -55,9 +53,9 @@ const initialTasks = [
 // =====================================
 const byPos = (a, b) => a.position - b.position
 const now = () => Date.now()
-
 const slugify = (txt) =>
-  txt.toLowerCase()
+  (txt || '')
+    .toLowerCase()
     .replace(/[^a-z0-9ก-๙]+/gi, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 24) || `col_${Math.random().toString(36).slice(2,7)}`
@@ -67,7 +65,6 @@ const themeToClass = (themeKey) => {
   if (!t) return { box: DEFAULT_COL_STYLE, dot: defaultDot }
   return { box: `${t.bg} ${t.border}`, dot: t.dot }
 }
-
 const normalize = (items, statuses) => {
   const next = [...items]
   statuses.forEach(({ key }) => {
@@ -79,7 +76,6 @@ const normalize = (items, statuses) => {
   })
   return next
 }
-
 const groupByStatus = (items, statuses) => {
   const g = {}
   statuses.forEach(({ key }) => {
@@ -87,7 +83,6 @@ const groupByStatus = (items, statuses) => {
   })
   return g
 }
-
 const parseLabels = (text) =>
   (text || '')
     .split(',')
@@ -96,9 +91,15 @@ const parseLabels = (text) =>
     .filter((v, i, arr) => arr.indexOf(v) === i)
 
 // =====================================
-// Drag Items
+// Drag helpers (แยก id การลากคอลัมน์กับการ์ด)
 // =====================================
-function TaskCard({ task }) {
+const colDragId = (key) => `col:${key}`
+const parseColId = (id) => (typeof id === 'string' && id.startsWith('col:')) ? id.slice(4) : null
+
+// =====================================
+// Components
+// =====================================
+function TaskCard({ task, onClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
   return (
     <div
@@ -111,12 +112,12 @@ function TaskCard({ task }) {
       {...attributes}
       {...listeners}
       className="rounded-xl border bg-white p-3 shadow-sm hover:shadow cursor-grab active:cursor-grabbing"
+      onClick={onClick}
     >
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-medium text-gray-900 leading-tight">{task.title}</h4>
         <span className="text-xs text-gray-400 select-none">#{task.id}</span>
       </div>
-
       {(task.labels?.length) ? (
         <div className="mt-1 flex flex-wrap gap-1">
           {task.labels.map(l => (
@@ -124,12 +125,10 @@ function TaskCard({ task }) {
           ))}
         </div>
       ) : null}
-
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
         <span>👤 {task.assignee || '-'}</span>
         {task.due_date && <span className="text-right">📅 {new Date(task.due_date).toLocaleDateString('th-TH')}</span>}
       </div>
-
       {task.note ? (
         <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">
           📝 {task.note}
@@ -139,6 +138,27 @@ function TaskCard({ task }) {
   )
 }
 
+// Column wrapper ที่ “ลากย้ายคอลัมน์” ได้ทั้งกล่อง
+function SortableColumnShell({ colKey, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: colDragId(colKey) })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.7 : 1
+      }}
+      {...attributes}
+      {...listeners}
+      className="h-full"
+    >
+      {children}
+    </div>
+  )
+}
+
+// พื้นที่ drop สำหรับคอลัมน์ว่าง
 function EmptyDropZone({ id }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
@@ -159,6 +179,7 @@ function Column({
   styleClass,
   dotClass,
   onAddTask,
+  onEditColumn,
   children
 }) {
   return (
@@ -169,10 +190,16 @@ function Column({
           <h3 className="text-sm font-semibold text-gray-700">{label}</h3>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs text-gray-600 border">{tasks.length}</span>
+          <button
+            onClick={() => onEditColumn(status)}
+            className="rounded-md border px-2 py-1 text-xs bg-white/70 hover:bg-white"
+            title="แก้ไขคอลัมน์นี้"
+          >
+            ⚙️ แก้ไขคอลัมน์
+          </button>
           <button
             onClick={() => onAddTask(status)}
-            className="rounded-md border px-2 py-1 text-xs bg-white/70 hover:bg-white transition"
+            className="rounded-md border px-2 py-1 text-xs bg-white/70 hover:bg-white"
             title="เพิ่มการ์ดในคอลัมน์นี้"
           >
             + เพิ่มการ์ด
@@ -184,18 +211,11 @@ function Column({
   )
 }
 
-// =====================================
-// Modals (Add Column / Add Card)
-// =====================================
+// ===== Modals =====
 function Backdrop({ onClose }) {
-  return (
-    <div
-      className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]"
-      onClick={onClose}
-    />
-  )
+  return <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
 }
-function ModalShell({ title, children, onClose, onSubmit, submitText='บันทึก' }) {
+function ModalShell({ title, children, onClose, onSubmit, submitText='บันทึก', extraLeft }) {
   return (
     <>
       <Backdrop onClose={onClose} />
@@ -206,9 +226,12 @@ function ModalShell({ title, children, onClose, onSubmit, submitText='บัน�
             <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
           </div>
           <div className="p-5">{children}</div>
-          <div className="flex items-center justify-end gap-2 px-5 pb-5">
-            <button onClick={onClose} className="rounded-md border px-3 py-1.5 text-sm">ยกเลิก</button>
-            <button onClick={onSubmit} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700">{submitText}</button>
+          <div className="flex items-center justify-between gap-2 px-5 pb-5">
+            <div className="flex items-center gap-2">{extraLeft}</div>
+            <div className="flex items-center gap-2">
+              <button onClick={onClose} className="rounded-md border px-3 py-1.5 text-sm">ยกเลิก</button>
+              <button onClick={onSubmit} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700">{submitText}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -221,7 +244,6 @@ function AddColumnModal({ open, onClose, onCreate }) {
   const [icon, setIcon] = useState(COLUMN_ICONS[0])
   const [theme, setTheme] = useState(COLUMN_THEMES[0].key)
   if (!open) return null
-
   return (
     <ModalShell
       title="เพิ่มคอลัมน์ใหม่"
@@ -232,43 +254,89 @@ function AddColumnModal({ open, onClose, onCreate }) {
       }}
       submitText="เพิ่มคอลัมน์"
     >
-      <div className="space-y-4">
+      <ColumnForm label={label} setLabel={setLabel} icon={icon} setIcon={setIcon} theme={theme} setTheme={setTheme} />
+    </ModalShell>
+  )
+}
+
+function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable }) {
+  const [label, setLabel] = useState(column?.label || '')
+  const [icon, setIcon] = useState(column?.icon || COLUMN_ICONS[0])
+  const [theme, setTheme] = useState(column?.theme || COLUMN_THEMES[0].key)
+
+  React.useEffect(() => {
+    setLabel(column?.label || '')
+    setIcon(column?.icon || COLUMN_ICONS[0])
+    setTheme(column?.theme || COLUMN_THEMES[0].key)
+  }, [column])
+
+  if (!open || !column) return null
+
+  return (
+    <ModalShell
+      title={`แก้ไขคอลัมน์: ${column.label}`}
+      onClose={onClose}
+      onSubmit={() => onSave({ label: label.trim(), icon, theme })}
+      submitText="บันทึก"
+      extraLeft={
+        <button
+          onClick={() => isDeletable ? onDelete() : null}
+          disabled={!isDeletable}
+          className={`rounded-md px-3 py-1.5 text-sm ${isDeletable?'border border-red-300 text-red-600 hover:bg-red-50':'border text-gray-300 cursor-not-allowed'}`}
+          title={isDeletable ? 'ลบคอลัมน์ (ต้องว่าง)' : 'ต้องลบการ์ดในคอลัมน์ให้หมดก่อน'}
+        >
+          ลบคอลัมน์
+        </button>
+      }
+    >
+      <ColumnForm label={label} setLabel={setLabel} icon={icon} setIcon={setIcon} theme={theme} setTheme={setTheme} readonlyKey={column.key} />
+    </ModalShell>
+  )
+}
+
+function ColumnForm({ label, setLabel, icon, setIcon, theme, setTheme, readonlyKey }) {
+  return (
+    <div className="space-y-4">
+      {readonlyKey && (
         <div>
-          <label className="block text-sm font-medium">ชื่อคอลัมน์</label>
-          <input value={label} onChange={e => setLabel(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น Backlog" />
+          <label className="block text-sm font-medium">คีย์คอลัมน์</label>
+          <input value={readonlyKey} readOnly className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-gray-50 text-gray-500" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium">ไอคอน</label>
-            <div className="mt-1 grid grid-cols-6 gap-2">
-              {COLUMN_ICONS.map(ic => (
-                <button key={ic}
-                  onClick={() => setIcon(ic)}
-                  className={`h-10 rounded-md border text-xl ${icon===ic?'bg-indigo-50 border-indigo-400':'bg-white'}`}>
-                  {ic}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium">ธีมสี</label>
-            <div className="mt-1 grid grid-cols-3 gap-2">
-              {COLUMN_THEMES.map(t => (
-                <button key={t.key}
-                  onClick={() => setTheme(t.key)}
-                  className={`rounded-md border px-2 py-2 text-sm flex items-center gap-2 ${theme===t.key?'ring-2 ring-indigo-400':''}`}>
-                  <span className={`inline-block h-3 w-3 rounded-full ${t.dot}`} />
-                  {t.name}
-                </button>
-              ))}
-            </div>
+      )}
+      <div>
+        <label className="block text-sm font-medium">ชื่อคอลัมน์</label>
+        <input value={label} onChange={e => setLabel(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น Backlog" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium">ไอคอน</label>
+          <div className="mt-1 grid grid-cols-6 gap-2">
+            {COLUMN_ICONS.map(ic => (
+              <button key={ic}
+                onClick={() => setIcon(ic)}
+                type="button"
+                className={`h-10 rounded-md border text-xl ${icon===ic?'bg-indigo-50 border-indigo-400':'bg-white'}`}>
+                {ic}
+              </button>
+            ))}
           </div>
         </div>
-        <div className="text-xs text-gray-500">
-          คีย์จะถูกสร้างอัตโนมัติตามชื่อ (เช่น <code>{slugify(label)}</code>)
+        <div>
+          <label className="block text-sm font-medium">ธีมสี</label>
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            {COLUMN_THEMES.map(t => (
+              <button key={t.key}
+                onClick={() => setTheme(t.key)}
+                type="button"
+                className={`rounded-md border px-2 py-2 text-sm flex items-center gap-2 ${theme===t.key?'ring-2 ring-indigo-400':''}`}>
+                <span className={`inline-block h-3 w-3 rounded-full ${t.dot}`} />
+                {t.name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </ModalShell>
+    </div>
   )
 }
 
@@ -280,7 +348,6 @@ function AddCardModal({ open, onClose, onCreate, defaultStatus }) {
   const [note, setNote] = useState('')
 
   if (!open) return null
-
   return (
     <ModalShell
       title="เพิ่มการ์ดใหม่"
@@ -298,31 +365,100 @@ function AddCardModal({ open, onClose, onCreate, defaultStatus }) {
       }}
       submitText="เพิ่มการ์ด"
     >
-      <div className="space-y-4">
+      <CardForm
+        title={title} setTitle={setTitle}
+        assignee={assignee} setAssignee={setAssignee}
+        labelsText={labelsText} setLabelsText={setLabelsText}
+        due={due} setDue={setDue}
+        note={note} setNote={setNote}
+      />
+    </ModalShell>
+  )
+}
+
+function EditCardModal({ open, onClose, task, onSave, onDelete }) {
+  const [title, setTitle] = useState(task?.title || '')
+  const [assignee, setAssignee] = useState(task?.assignee || '')
+  const [labelsText, setLabelsText] = useState((task?.labels || []).join(', '))
+  const [due, setDue] = useState(task?.due_date || '')
+  const [note, setNote] = useState(task?.note || '')
+
+  React.useEffect(() => {
+    setTitle(task?.title || '')
+    setAssignee(task?.assignee || '')
+    setLabelsText((task?.labels || []).join(', '))
+    setDue(task?.due_date || '')
+    setNote(task?.note || '')
+  }, [task])
+
+  if (!open || !task) return null
+  return (
+    <ModalShell
+      title={`แก้ไขการ์ด #${task.id}`}
+      onClose={onClose}
+      onSubmit={() => {
+        const payload = {
+          title: title.trim() || 'งานใหม่',
+          assignee: assignee.trim() || null,
+          labels: parseLabels(labelsText),
+          due_date: due || undefined,
+          note: note.trim()
+        }
+        onSave(payload)
+      }}
+      submitText="บันทึก"
+      extraLeft={
+        <button
+          onClick={onDelete}
+          className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+        >
+          ลบการ์ด
+        </button>
+      }
+    >
+      <CardForm
+        title={title} setTitle={setTitle}
+        assignee={assignee} setAssignee={setAssignee}
+        labelsText={labelsText} setLabelsText={setLabelsText}
+        due={due} setDue={setDue}
+        note={note} setNote={setNote}
+      />
+    </ModalShell>
+  )
+}
+
+function CardForm({
+  title, setTitle,
+  assignee, setAssignee,
+  labelsText, setLabelsText,
+  due, setDue,
+  note, setNote
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium">หัวข้อ</label>
+        <input value={title} onChange={e => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น ออกแบบหน้า Dashboard" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium">หัวข้อ</label>
-          <input value={title} onChange={e => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น ออกแบบหน้า Dashboard" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium">ผู้รับผิดชอบ</label>
-            <input value={assignee} onChange={e => setAssignee(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น Somchai" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">วันครบกำหนด</label>
-            <input type="date" value={due} onChange={e => setDue(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
-          </div>
+          <label className="block text-sm font-medium">ผู้รับผิดชอบ</label>
+          <input value={assignee} onChange={e => setAssignee(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น Somchai" />
         </div>
         <div>
-          <label className="block text-sm font-medium">ป้าย (คั่นด้วย ,)</label>
-          <input value={labelsText} onChange={e => setLabelsText(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น FE, Urgent" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium">โน้ตย่อ</label>
-          <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="รายละเอียดเพิ่มเติม..." />
+          <label className="block text-sm font-medium">วันครบกำหนด</label>
+          <input type="date" value={due} onChange={e => setDue(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
         </div>
       </div>
-    </ModalShell>
+      <div>
+        <label className="block text-sm font-medium">ป้าย (คั่นด้วย ,)</label>
+        <input value={labelsText} onChange={e => setLabelsText(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น FE, Urgent" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">โน้ตย่อ</label>
+        <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="รายละเอียดเพิ่มเติม..." />
+      </div>
+    </div>
   )
 }
 
@@ -330,13 +466,15 @@ function AddCardModal({ open, onClose, onCreate, defaultStatus }) {
 // Page
 // =====================================
 export default function BoardPage() {
-  const [statuses, setStatuses] = useState(INITIAL_STATUSES) // [{key,label,theme,icon}]
+  const [statuses, setStatuses] = useState(INITIAL_STATUSES) // [{key,label,theme,icon}] (เรียงตามลำดับคอลัมน์)
   const [items, setItems] = useState(normalize(initialTasks, INITIAL_STATUSES))
   const [activeId, setActiveId] = useState(null)
 
-  // Modal states
+  // Modals
   const [openAddColumn, setOpenAddColumn] = useState(false)
   const [openAddCardFor, setOpenAddCardFor] = useState(null) // statusKey | null
+  const [editColKey, setEditColKey] = useState(null)         // statusKey | null
+  const [editTaskId, setEditTaskId] = useState(null)         // taskId | null
 
   const maxInitialId = initialTasks.length ? Math.max(...initialTasks.map(t => t.id)) : 0
   const nextTaskIdRef = useRef(maxInitialId + 1)
@@ -359,6 +497,20 @@ export default function BoardPage() {
     setActiveId(null)
     if (!over) return
 
+    // 1) ลากคอลัมน์ ↔ สลับลำดับ statuses
+    const activeColKey = parseColId(active.id)
+    const overColKey = parseColId(over.id)
+    if (activeColKey && overColKey && activeColKey !== overColKey) {
+      const currentOrder = statuses.map(s => s.key)
+      const oldIndex = currentOrder.indexOf(activeColKey)
+      const newIndex = currentOrder.indexOf(overColKey)
+      const reordered = arrayMove(statuses, oldIndex, newIndex)
+      setStatuses(reordered)
+      // ไม่ต้องยุ่ง tasks เพราะ status key เดิม
+      return
+    }
+
+    // 2) ลากการ์ด
     const a = items.find(x => x.id === active.id)
     if (!a) return
 
@@ -399,6 +551,7 @@ export default function BoardPage() {
       return
     }
 
+    // วางบนคอลัมน์ (รวมถึงคอลัมน์ว่าง)
     const dropCol = statuses.find(s => s.key === over.id)?.key
     if (dropCol) {
       const from = a.status
@@ -420,7 +573,6 @@ export default function BoardPage() {
 
   // ---------- Create ----------
   function createColumn({ key, label, icon, theme }) {
-    // กัน key ซ้ำ
     let finalKey = key
     const exists = statuses.some(s => s.key === finalKey)
     if (exists) finalKey = `${finalKey}_${Math.random().toString(36).slice(2,5)}`
@@ -448,13 +600,55 @@ export default function BoardPage() {
     setOpenAddCardFor(null)
   }
 
+  // ---------- Edit Column ----------
+  function openEditColumn(statusKey) {
+    setEditColKey(statusKey)
+  }
+  function saveEditColumn({ label, icon, theme }) {
+    setStatuses(prev => prev.map(s => s.key === editColKey ? { ...s, label, icon, theme } : s))
+    setEditColKey(null)
+  }
+  function deleteColumn() {
+    // ลบได้เฉพาะคอลัมน์ว่าง
+    const key = editColKey
+    const hasTasks = (cols[key] || []).length > 0
+    if (hasTasks) return
+    setStatuses(prev => prev.filter(s => s.key !== key))
+    setEditColKey(null)
+  }
+
+  // ---------- Edit Card ----------
+  const editingTask = useMemo(() => items.find(t => t.id === editTaskId) || null, [editTaskId, items])
+
+  function openEditTask(taskId) {
+    setEditTaskId(taskId)
+  }
+  function saveEditTask(payload) {
+    setItems(prev => prev.map(t => t.id === editTaskId
+      ? { ...t, ...payload, updatedAt: now() }
+      : t
+    ))
+    setEditTaskId(null)
+  }
+  function deleteTask() {
+    setItems(prev => {
+      const next = prev.filter(t => t.id !== editTaskId)
+      // normalize เฉพาะคอลัมน์ที่กระทบ
+      const affectedStatus = editingTask?.status
+      const statusesToUse = statuses
+      const re = normalize(next, statusesToUse)
+      return re
+    })
+    setEditTaskId(null)
+  }
+
   return (
     <div className="mx-auto max-w-7xl">
       {/* Header */}
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Kanban (Mock Data)</h1>
-          <div className="text-sm text-gray-500">ลากแล้ววางเพื่อจัดลำดับ • คลิก “เพิ่มคอลัมน์/เพิ่มการ์ด” เพื่อสร้างข้อมูล</div>
+          <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -467,42 +661,50 @@ export default function BoardPage() {
         </div>
       </header>
 
-      {/* Board */}
+      {/* Board: ทำให้คอลัมน์เป็น Sortable ด้วย */}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {statuses.map(({ key, label, theme, icon }) => {
-            const tasks = cols[key] || []
-            const { box, dot } = themeToClass(theme)
-            return (
-              <SortableContext
-                key={key}
-                items={tasks.map(t => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <Column
-                  status={key}
-                  label={`${icon ? icon+' ' : ''}${label}`}
-                  tasks={tasks}
-                  styleClass={box}
-                  dotClass={dot}
-                  onAddTask={() => setOpenAddCardFor(key)}
-                >
-                  {tasks.length === 0 ? <EmptyDropZone id={key} /> : null}
-                  {tasks.map(t => <TaskCard key={t.id} task={t} />)}
-                </Column>
-              </SortableContext>
-            )
-          })}
-        </div>
+        {/* ห่อระดับคอลัมน์ด้วย SortableContext เพื่อให้ลากสลับคอลัมน์ได้ */}
+        <SortableContext
+          items={statuses.map(s => colDragId(s.key))}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {statuses.map(({ key, label, theme, icon }) => {
+              const tasks = cols[key] || []
+              const { box, dot } = themeToClass(theme)
+              return (
+                <SortableColumnShell key={key} colKey={key}>
+                  {/* ชั้นใน: ห่อการ์ดของคอลัมน์ด้วย SortableContext (แนวตั้ง) */}
+                  <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                    <Column
+                      status={key}
+                      label={`${icon ? icon+' ' : ''}${label}`}
+                      tasks={tasks}
+                      styleClass={box}
+                      dotClass={dot}
+                      onAddTask={() => setOpenAddCardFor(key)}
+                      onEditColumn={openEditColumn}
+                    >
+                      {tasks.length === 0 ? <EmptyDropZone id={key} /> : null}
+                      {tasks.map(t => (
+                        <TaskCard key={t.id} task={t} onClick={() => openEditTask(t.id)} />
+                      ))}
+                    </Column>
+                  </SortableContext>
+                </SortableColumnShell>
+              )
+            })}
+          </div>
+        </SortableContext>
 
         <DragOverlay>
           <div className="rounded-xl border bg-white p-3 shadow-lg">
-            {activeTask?.title}
+            {activeTask?.title || null}
           </div>
         </DragOverlay>
       </DndContext>
@@ -518,6 +720,21 @@ export default function BoardPage() {
         onClose={() => setOpenAddCardFor(null)}
         onCreate={createCard}
         defaultStatus={openAddCardFor || ''}
+      />
+      <EditColumnModal
+        open={!!editColKey}
+        onClose={() => setEditColKey(null)}
+        column={statuses.find(s => s.key === editColKey) || null}
+        onSave={saveEditColumn}
+        onDelete={deleteColumn}
+        isDeletable={(cols[editColKey]?.length || 0) === 0}
+      />
+      <EditCardModal
+        open={!!editTaskId}
+        onClose={() => setEditTaskId(null)}
+        task={editingTask}
+        onSave={saveEditTask}
+        onDelete={deleteTask}
       />
     </div>
   )
