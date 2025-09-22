@@ -1,5 +1,5 @@
 'use client'
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext, DragOverlay,
   PointerSensor, KeyboardSensor, useSensor, useSensors
@@ -14,41 +14,35 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { closestCorners, closestCenter } from '@dnd-kit/core'
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
+import { API } from '@/config'
+
+
+
+
+// next id จะตั้งหลังโหลดเสร็จ
+
 
 // ========= Presets =========
 const COLUMN_THEMES = [
-  { key: 'slate',  name: 'Slate',  bg: 'bg-slate-50',  border: 'border-slate-200',  dot: 'bg-slate-400'  },
-  { key: 'gray',   name: 'Gray',   bg: 'bg-gray-50',   border: 'border-gray-200',   dot: 'bg-gray-400'   },
-  { key: 'blue',   name: 'Blue',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-400'   },
-  { key: 'amber',  name: 'Amber',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-400'  },
-  { key: 'emerald',name: 'Emerald',bg: 'bg-emerald-50',border: 'border-emerald-200',dot: 'bg-emerald-400'},
+  { key: 'slate', name: 'Slate', bg: 'bg-slate-50', border: 'border-slate-200', dot: 'bg-slate-400' },
+  { key: 'gray', name: 'Gray', bg: 'bg-gray-50', border: 'border-gray-200', dot: 'bg-gray-400' },
+  { key: 'blue', name: 'Blue', bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-400' },
+  { key: 'amber', name: 'Amber', bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-400' },
+  { key: 'emerald', name: 'Emerald', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-400' },
   { key: 'violet', name: 'Violet', bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-400' },
-  { key: 'rose',   name: 'Rose',   bg: 'bg-rose-50',   border: 'border-rose-200',   dot: 'bg-rose-400'   },
+  { key: 'rose', name: 'Rose', bg: 'bg-rose-50', border: 'border-rose-200', dot: 'bg-rose-400' },
 ]
-const COLUMN_ICONS = ['📋','⚙️','🧪','✅','📝','🚧','🔍','💡','🎯','🧱']
+const COLUMN_ICONS = ['📋', '⚙️', '🧪', '✅', '📝', '🚧', '🔍', '💡', '🎯', '🧱']
 const DEFAULT_COL_STYLE = 'bg-slate-50 border-slate-200'
 const defaultDot = 'bg-slate-400'
 
-// ========= Initial Data =========
-const INITIAL_STATUSES = [
-  { key: 'TODO',   label: 'To Do',   theme: 'gray',   icon: '📋' },
-  { key: 'DOING',  label: 'Doing',   theme: 'blue',   icon: '⚙️' },
-  { key: 'REVIEW', label: 'Review',  theme: 'amber',  icon: '🧪' },
-  { key: 'DONE',   label: 'Done',    theme: 'emerald',icon: '✅' },
-]
-const initialTasks = [
-  { id: 1, title: 'กำหนดขอบเขตโครงการ', status: 'TODO', position: 0, labels: ['PM'], assignee: 'Anong', createdAt: Date.now(), updatedAt: Date.now(), note: '' },
-  { id: 2, title: 'ออกแบบฐานข้อมูล', status: 'DOING', position: 0, labels: ['DB'], assignee: 'Somchai', createdAt: Date.now(), updatedAt: Date.now(), note: '' },
-  { id: 3, title: 'พัฒนา API /auth', status: 'DOING', position: 1, labels: ['API'], assignee: null, createdAt: Date.now(), updatedAt: Date.now(), note: '' },
-  { id: 4, title: 'หน้า Login (Next.js)', status: 'REVIEW', position: 0, labels: ['FE'], assignee: 'Anong', due_date: new Date().toISOString().slice(0, 10), createdAt: Date.now(), updatedAt: Date.now(), note: '' },
-  { id: 5, title: 'ตั้ง CI/CD', status: 'DONE', position: 0, labels: ['DevOps'], assignee: 'Somchai', createdAt: Date.now(), updatedAt: Date.now(), note: '' },
-]
+// ====== ใช้ payload ที่ให้มา ======
 
 // ========= Helpers =========
 const byPos = (a, b) => a.position - b.position
 const now = () => Date.now()
-const slugify = (txt='') =>
-  (txt.toLowerCase().replace(/[^a-z0-9ก-๙]+/gi, '_').replace(/^_+|_+$/g, '').slice(0,24)) || `col_${Math.random().toString(36).slice(2,7)}`
+const slugify = (txt = '') =>
+  (txt.toLowerCase().replace(/[^a-z0-9ก-๙]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 24)) || `col_${Math.random().toString(36).slice(2, 7)}`
 const themeToClass = (themeKey) => {
   const t = COLUMN_THEMES.find(x => x.key === themeKey)
   if (!t) return { box: DEFAULT_COL_STYLE, dot: defaultDot }
@@ -70,8 +64,77 @@ const groupByStatus = (items, statuses) => {
   statuses.forEach(({ key }) => { g[key] = items.filter(i => i.status === key).sort(byPos) })
   return g
 }
-const parseLabels = (text='') =>
-  text.split(',').map(s => s.trim()).filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i)
+const parseLabels = (text = '') =>
+  text.split(',').map(s => s.trim()).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
+
+// ===== Status meta + order (JS object/array ธรรมดา) =====
+const STATUS_META = {
+  TODO: { label: 'To Do', theme: 'gray', icon: '📋' },
+  DOING: { label: 'Doing', theme: 'blue', icon: '⚙️' },
+  REVIEW: { label: 'Review', theme: 'amber', icon: '🧪' },
+  DONE: { label: 'Done', theme: 'emerald', icon: '✅' },
+}
+const STATUS_ORDER = ['TODO', 'DOING', 'REVIEW', 'DONE']
+
+function deriveStatusesFromData(resp) {
+  const rows = Array.isArray(resp?.data) ? resp.data : []
+  const present = new Set(rows.map(r => r?.status).filter(Boolean))
+  const order = STATUS_ORDER.filter(k => present.has(k))
+  const base = (order.length ? order : STATUS_ORDER)
+  return base.map(k => ({ key: k, label: STATUS_META[k].label, theme: STATUS_META[k].theme, icon: STATUS_META[k].icon }))
+}
+
+function adaptProjectTasksToBoard(resp) {
+  const rows = Array.isArray(resp?.data) ? resp.data : []
+  const bucket = {}
+  STATUS_ORDER.forEach(k => { bucket[k] = [] })
+
+  const safeTs = (s) => {
+    const t = s ? Date.parse(s) : NaN
+    return Number.isFinite(t) ? t : Date.now()
+  }
+
+  rows.forEach(r => {
+    const roleLabels = (r?.ProjectTaskAssignments || [])
+      .flatMap(a => [a?.role?.name])   // ถ้าจะรวม user ด้วย ก็ใส่ a?.user?.name ด้วย
+      .filter(Boolean)
+
+    const assignees = (r?.ProjectTaskAssignments || [])
+      .map(a => a?.user?.name)
+      .filter(Boolean)
+
+    const status = (r?.status && STATUS_ORDER.includes(r.status)) ? r.status : 'TODO'
+
+    const item = {
+      id: r.id,
+      title: r.name,
+      status,
+      position: 0,
+      labels: Array.from(new Set(roleLabels)),
+      assignees,
+      due_date: r?.end_date || undefined,
+      note: r?.description || '',
+      createdAt: safeTs(r?.created_at),
+      updatedAt: safeTs(r?.updated_at || r?.created_at),
+    }
+    if (!bucket[status]) bucket[status] = []
+    bucket[status].push(item)
+  })
+
+  let items = []
+  STATUS_ORDER.forEach(st => {
+    const list = (bucket[st] || []).sort((a, b) => {
+      const ad = a.due_date ? Date.parse(a.due_date) : Number.POSITIVE_INFINITY
+      const bd = b.due_date ? Date.parse(b.due_date) : Number.POSITIVE_INFINITY
+      if (ad !== bd) return ad - bd
+      return a.id - b.id
+    })
+    list.forEach((t, i) => { t.position = i })
+    items = items.concat(list)
+  })
+
+  return items
+}
 
 // ========= Card =========
 function TaskCard({ task, onClick, dragDisabled }) {
@@ -91,13 +154,17 @@ function TaskCard({ task, onClick, dragDisabled }) {
         <h4 className="font-medium text-gray-900 leading-tight">{task.title}</h4>
         <span className="text-xs text-gray-400 select-none">#{task.id}</span>
       </div>
-      {(task.labels?.length) ? (
+      {task.labels?.length ? (
         <div className="mt-1 flex flex-wrap gap-1">
-          {task.labels.map(l => <span key={l} className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{l}</span>)}
+          {task.labels.map(l => (
+            <span key={l} className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{l}</span>
+          ))}
         </div>
       ) : null}
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
-        <span>👤 {task.assignee || '-'}</span>
+        <span>
+          👤 {task.assignees?.length ? task.assignees.join(', ') : '-'}
+        </span>
         {task.due_date && <span className="text-right">📅 {new Date(task.due_date).toLocaleDateString('th-TH')}</span>}
       </div>
       {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {task.note}</div> : null}
@@ -124,7 +191,6 @@ function SortableColumnShell({ colKey, children }) {
 function Column({ status, label, tasks, styleClass, dotClass, onAddTask, onEditColumn, children }) {
   return (
     <div className={`flex h-full flex-col rounded-2xl border shadow-sm hover:shadow ${styleClass || DEFAULT_COL_STYLE}`}>
-      {/* sticky header */}
       <div className="sticky top-0 z-10 -m-px rounded-t-2xl border-b bg-white/80 backdrop-blur px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -137,8 +203,6 @@ function Column({ status, label, tasks, styleClass, dotClass, onAddTask, onEditC
           </div>
         </div>
       </div>
-
-      {/* list */}
       <div className="flex-1 space-y-2 overflow-y-auto p-3">
         {children}
       </div>
@@ -148,7 +212,7 @@ function Column({ status, label, tasks, styleClass, dotClass, onAddTask, onEditC
 
 // ========= Basic UI (modals reused) =========
 function Backdrop({ onClose }) { return <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" onClick={onClose} /> }
-function ModalShell({ title, children, onClose, onSubmit, submitText='บันทึก', extraLeft }) {
+function ModalShell({ title, children, onClose, onSubmit, submitText = 'บันทึก', extraLeft }) {
   return (
     <>
       <Backdrop onClose={onClose} />
@@ -189,7 +253,7 @@ function ColumnForm({ label, setLabel, icon, setIcon, theme, setTheme, readonlyK
           <label className="block text-sm font-medium">ไอคอน</label>
           <div className="mt-1 grid grid-cols-6 gap-2">
             {COLUMN_ICONS.map(ic => (
-              <button key={ic} onClick={() => setIcon(ic)} type="button" className={`h-10 rounded-md border text-xl ${icon===ic?'bg-indigo-50 border-indigo-400':'bg-white'}`}>{ic}</button>
+              <button key={ic} onClick={() => setIcon(ic)} type="button" className={`h-10 rounded-md border text-xl ${icon === ic ? 'bg-indigo-50 border-indigo-400' : 'bg-white'}`}>{ic}</button>
             ))}
           </div>
         </div>
@@ -197,7 +261,7 @@ function ColumnForm({ label, setLabel, icon, setIcon, theme, setTheme, readonlyK
           <label className="block text-sm font-medium">ธีมสี</label>
           <div className="mt-1 grid grid-cols-3 gap-2">
             {COLUMN_THEMES.map(t => (
-              <button key={t.key} onClick={() => setTheme(t.key)} type="button" className={`rounded-md border px-2 py-2 text-sm flex items-center gap-2 ${theme===t.key?'ring-2 ring-indigo-400':''}`}>
+              <button key={t.key} onClick={() => setTheme(t.key)} type="button" className={`rounded-md border px-2 py-2 text-sm flex items-center gap-2 ${theme === t.key ? 'ring-2 ring-indigo-400' : ''}`}>
                 <span className={`inline-block h-3 w-3 rounded-full ${t.dot}`} /> {t.name}
               </button>
             ))}
@@ -222,7 +286,7 @@ function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable 
   const [label, setLabel] = useState(column?.label || '')
   const [icon, setIcon] = useState(column?.icon || COLUMN_ICONS[0])
   const [theme, setTheme] = useState(column?.theme || COLUMN_THEMES[0].key)
-  React.useEffect(() => { setLabel(column?.label||''); setIcon(column?.icon||COLUMN_ICONS[0]); setTheme(column?.theme||COLUMN_THEMES[0].key) }, [column])
+  React.useEffect(() => { setLabel(column?.label || ''); setIcon(column?.icon || COLUMN_ICONS[0]); setTheme(column?.theme || COLUMN_THEMES[0].key) }, [column])
   if (!open || !column) return null
   return (
     <ModalShell
@@ -230,7 +294,7 @@ function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable 
       onSubmit={() => onSave({ label: label.trim(), icon, theme })} submitText="บันทึก"
       extraLeft={
         <button onClick={() => isDeletable ? onDelete() : null} disabled={!isDeletable}
-          className={`rounded-md px-3 py-1.5 text-sm ${isDeletable?'border border-red-300 text-red-600 hover:bg-red-50':'border text-gray-300 cursor-not-allowed'}`}
+          className={`rounded-md px-3 py-1.5 text-sm ${isDeletable ? 'border border-red-300 text-red-600 hover:bg-red-50' : 'border text-gray-300 cursor-not-allowed'}`}
           title={isDeletable ? 'ลบคอลัมน์ (ต้องว่าง)' : 'ต้องลบการ์ดในคอลัมน์ให้หมดก่อน'}>
           ลบคอลัมน์
         </button>
@@ -284,52 +348,169 @@ function AddCardModal({ open, onClose, onCreate, defaultStatus }) {
       note: note.trim(),
       status: defaultStatus
     })} submitText="เพิ่มการ์ด">
-      <CardForm {...{title,setTitle,assignee,setAssignee,labelsText,setLabelsText,due,setDue,note,setNote}} />
+      <CardForm {...{ title, setTitle, assignee, setAssignee, labelsText, setLabelsText, due, setDue, note, setNote }} />
     </ModalShell>
   )
 }
 function EditCardModal({ open, onClose, task, onSave, onDelete }) {
   const [title, setTitle] = useState(task?.title || '')
-  const [assignee, setAssignee] = useState(task?.assignee || '')
+  // รับหลายคนเป็น CSV string; ถ้า task.assignees เป็น array จะ join ให้
+  const [assignee, setAssignee] = useState(
+    Array.isArray(task?.assignees)
+      ? task.assignees.join(', ')
+      : (task?.assignee || '')
+  )
   const [labelsText, setLabelsText] = useState((task?.labels || []).join(', '))
   const [due, setDue] = useState(task?.due_date || '')
   const [note, setNote] = useState(task?.note || '')
+
   React.useEffect(() => {
-    setTitle(task?.title || ''); setAssignee(task?.assignee || '')
-    setLabelsText((task?.labels || []).join(', ')); setDue(task?.due_date || ''); setNote(task?.note || '')
+    setTitle(task?.title || '')
+    setAssignee(
+      Array.isArray(task?.assignees)
+        ? task.assignees.join(', ')
+        : (task?.assignee || '')
+    )
+    setLabelsText((task?.labels || []).join(', '))
+    setDue(task?.due_date || '')
+    setNote(task?.note || '')
   }, [task])
+
   if (!open || !task) return null
+
   return (
-    <ModalShell title={`แก้ไขการ์ด #${task.id}`} onClose={onClose}
-      onSubmit={() => onSave({
-        title: title.trim() || 'งานใหม่',
-        assignee: assignee.trim() || null,
-        labels: parseLabels(labelsText),
-        due_date: due || undefined,
-        note: note.trim()
-      })}
+    <ModalShell
+      title={`แก้ไขการ์ด #${task.id}`}
+      onClose={onClose}
+      onSubmit={() => {
+        // แปลง CSV -> array และกันค่าว่างซ้ำซ้อนด้วย parseLabels เดิม
+        const assigneesArr = parseLabels(assignee) // ['Ann UX','John Dev', ...]
+        onSave({
+          title: title.trim() || 'งานใหม่',
+          // คงส่ง labels เป็น array เดิม
+          labels: parseLabels(labelsText),
+          due_date: due || undefined,
+          note: note.trim(),
+          // ใหม่: ส่งทั้งแบบหลายคน (assignees) และสำรองเป็นคนแรก (assignee) เพื่อรองรับ UI เก่า
+          assignees: assigneesArr,
+          assignee: assigneesArr[0] || null,
+        })
+      }}
       submitText="บันทึก"
-      extraLeft={<button onClick={onDelete} className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">ลบการ์ด</button>}
+      extraLeft={
+        <button
+          onClick={onDelete}
+          className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+        >
+          ลบการ์ด
+        </button>
+      }
     >
-      <CardForm {...{title,setTitle,assignee,setAssignee,labelsText,setLabelsText,due,setDue,note,setNote}} />
+      {/* ช่องผู้รับผิดชอบยังใช้ input เดิม แต่อนุญาตให้กรอกหลายชื่อคั่นด้วย , */}
+      <CardForm
+        {...{
+          title,
+          setTitle,
+          assignee,        // CSV string
+          setAssignee,     // setter ของ CSV
+          labelsText,
+          setLabelsText,
+          due,
+          setDue,
+          note,
+          setNote,
+        }}
+      />
     </ModalShell>
   )
 }
 
+// function EditCardModal({ open, onClose, task, onSave, onDelete }) {
+//   const [title, setTitle] = useState(task?.title || '')
+//   const [assignee, setAssignee] = useState(task?.assignee || '')
+//   const [labelsText, setLabelsText] = useState((task?.labels || []).join(', '))
+//   const [due, setDue] = useState(task?.due_date || '')
+//   const [note, setNote] = useState(task?.note || '')
+//   React.useEffect(() => {
+//     setTitle(task?.title || ''); setAssignee(task?.assignee || '')
+//     setLabelsText((task?.labels || []).join(', ')); setDue(task?.due_date || ''); setNote(task?.note || '')
+//   }, [task])
+//   if (!open || !task) return null
+//   return (
+//     <ModalShell title={`แก้ไขการ์ด #${task.id}`} onClose={onClose}
+//       onSubmit={() => onSave({
+//         title: title.trim() || 'งานใหม่',
+//         assignee: assignee.trim() || null,
+//         labels: parseLabels(labelsText),
+//         due_date: due || undefined,
+//         note: note.trim()
+//       })}
+//       submitText="บันทึก"
+//       extraLeft={<button onClick={onDelete} className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">ลบการ์ด</button>}
+//     >
+//       <CardForm {...{ title, setTitle, assignee, setAssignee, labelsText, setLabelsText, due, setDue, note, setNote }} />
+//     </ModalShell>
+//   )
+// }
+
 // ========= Page =========
 export default function BoardPage() {
-  const [statuses, setStatuses] = useState(INITIAL_STATUSES) // ลำดับคอลัมน์ = ลำดับ array นี้
-  const [items, setItems] = useState(normalize(initialTasks, INITIAL_STATUSES))
-  const [activeId, setActiveId] = useState(null)
-  const [dragMode, setDragMode] = useState('none') // 'none' | 'col' | 'card'
+  // ใช้ statuses/items ที่ได้จาก payload
+  // const INITIAL_STATUSES = deriveStatusesFromData(PROJECT_TASKS_PAYLOAD)
+  // const initialTasks = adaptProjectTasksToBoard(PROJECT_TASKS_PAYLOAD)
 
-  const [openAddColumn, setOpenAddColumn] = useState(false)
-  const [openAddCardFor, setOpenAddCardFor] = useState(null)
-  const [editColKey, setEditColKey] = useState(null)
-  const [editTaskId, setEditTaskId] = useState(null)
+  const [statuses, setStatuses] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const maxInitialId = initialTasks.length ? Math.max(...initialTasks.map(t => t.id)) : 0
-  const nextTaskIdRef = useRef(maxInitialId + 1)
+  const [activeId, setActiveId] = useState(null);
+  const [dragMode, setDragMode] = useState('none');
+
+  const [openAddColumn, setOpenAddColumn] = useState(false);
+  const [openAddCardFor, setOpenAddCardFor] = useState(null);
+  const [editColKey, setEditColKey] = useState(null);
+  const [editTaskId, setEditTaskId] = useState(null);
+
+  // next id จะตั้งหลังโหลดเสร็จ
+  const nextTaskIdRef = useRef(1);
+
+  async function fetchTasks(projectId = '5') {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch(`${API}/projectTask/searchProjectTaskAssignment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId }), // ตาม cURL: "id": "5"
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} ${res.statusText} ${text ? `- ${text}` : ''}`);
+      }
+
+      const data = await res.json();
+      const nextStatuses = deriveStatusesFromData(data);
+      const nextItems = adaptProjectTasksToBoard(data);
+
+      setStatuses(nextStatuses);
+      setItems(nextItems);
+
+      const maxId = nextItems.length ? Math.max(...nextItems.map(t => t.id)) : 0;
+      nextTaskIdRef.current = maxId + 1;
+    } catch (e) {
+      console.error(e);
+      setError(e?.message || 'Load failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchTasks('5'); // ถ้าจะทำให้ไดนามิก ค่อยโยกเป็น props/route param
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -339,17 +520,14 @@ export default function BoardPage() {
   const cols = useMemo(() => groupByStatus(items, statuses), [items, statuses])
   const activeTask = useMemo(() => items.find(t => t.id === activeId) || null, [activeId, items])
 
-  // --- utility: เป็นคอลัมน์ไหม
   const isColumnId = (id) => typeof id === 'string' && statuses.some(s => s.key === id)
 
-  // --- collision detector ที่กรองให้เหลือแต่ "คอลัมน์" ขณะลากคอลัมน์
   const columnOnlyCollision = (args) => {
     const columnIds = new Set(statuses.map(s => s.key))
     const filtered = args.droppableContainers.filter(c => columnIds.has(c.id))
     return closestCenter({ ...args, droppableContainers: filtered })
   }
 
-  // ---- DnD ----
   function onDragStart(e) {
     setActiveId(e.active.id)
     setDragMode(isColumnId(e.active.id) ? 'col' : 'card')
@@ -396,14 +574,14 @@ export default function BoardPage() {
       const moved = { ...a, status: to, updatedAt: now() }
       const idx = target.findIndex(t => t.id === overTask.id)
       target.splice(idx, 0, moved)
-      const write = (list, forceStatus=null) => list.forEach((t, i) => {
+      const write = (list, forceStatus = null) => list.forEach((t, i) => {
         const k = next.findIndex(n => n.id === t.id)
         next[k] = { ...next[k], status: forceStatus || t.status, position: i, updatedAt: now() }
       })
       write(origin, from); write(target, to); setItems(next); return
     }
 
-    // วางบนคอลัมน์ (รวมถึงคอลัมน์ว่าง)
+    // วางบนคอลัมน์
     if (isColumnId(over.id)) {
       const dropCol = over.id
       const from = a.status
@@ -411,7 +589,7 @@ export default function BoardPage() {
       const target = next.filter(t => t.status === dropCol).sort(byPos)
       const moved = { ...a, status: dropCol, updatedAt: now() }
       target.push(moved)
-      const write = (list, forceStatus=null) => list.forEach((t, i) => {
+      const write = (list, forceStatus = null) => list.forEach((t, i) => {
         const k = next.findIndex(n => n.id === t.id)
         next[k] = { ...next[k], status: forceStatus || t.status, position: i, updatedAt: now() }
       })
@@ -419,10 +597,9 @@ export default function BoardPage() {
     }
   }
 
-  // ---- Create / Edit ----
   function createColumn({ key, label, icon, theme }) {
     let finalKey = key
-    if (statuses.some(s => s.key === finalKey)) finalKey = `${finalKey}_${Math.random().toString(36).slice(2,5)}`
+    if (statuses.some(s => s.key === finalKey)) finalKey = `${finalKey}_${Math.random().toString(36).slice(2, 5)}`
     setStatuses(prev => [...prev, { key: finalKey, label, icon, theme }])
     setOpenAddColumn(false)
   }
@@ -445,12 +622,11 @@ export default function BoardPage() {
   }
   function deleteColumn() {
     const key = editColKey
-    if ((cols[key]?.length || 0) > 0) return
+    if ((groupByStatus(items, statuses)[key]?.length || 0) > 0) return
     setStatuses(prev => prev.filter(s => s.key !== key))
     setEditColKey(null)
   }
 
-  // Card edit
   const editingTask = useMemo(() => items.find(t => t.id === editTaskId) || null, [editTaskId, items])
   function openEditTask(taskId) { setEditTaskId(taskId) }
   function saveEditTask(payload) {
@@ -462,17 +638,15 @@ export default function BoardPage() {
     setEditTaskId(null)
   }
 
-  // ---- DnD dynamic options ----
   const dndCollision = dragMode === 'col' ? columnOnlyCollision : closestCorners
   const dndModifiers = dragMode === 'col' ? [restrictToHorizontalAxis] : undefined
 
   return (
     <div className="mx-auto min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* Header (sticky) */}
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Kanban (Mock Data)</h1>
+            <h1 className="text-2xl font-bold">Kanban (จาก Payload)</h1>
             <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
           </div>
           <div className="flex items-center gap-2">
@@ -483,7 +657,6 @@ export default function BoardPage() {
         </div>
       </header>
 
-      {/* Board Full-Height */}
       <div className="mx-auto max-w-[1600px] px-4">
         <DndContext
           sensors={sensors}
@@ -492,7 +665,6 @@ export default function BoardPage() {
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
-          {/* ชั้นคอลัมน์ (บรรทัดเดียว เลื่อนข้าง) */}
           <SortableContext items={statuses.map(s => s.key)} strategy={horizontalListSortingStrategy}>
             <div className="h-[calc(100vh-160px)] w-full overflow-x-auto overflow-y-hidden">
               <div className="flex h-full gap-4 pr-4">
@@ -501,11 +673,10 @@ export default function BoardPage() {
                   const { box, dot } = themeToClass(theme)
                   return (
                     <SortableColumnShell key={key} colKey={key}>
-                      {/* ชั้นการ์ดในคอลัมน์ */}
                       <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                         <Column
                           status={key}
-                          label={`${icon ? icon+' ' : ''}${label}`}
+                          label={`${icon ? icon + ' ' : ''}${label}`}
                           tasks={tasks}
                           styleClass={box}
                           dotClass={dot}
@@ -516,7 +687,7 @@ export default function BoardPage() {
                             <div className="min-h-[80px] rounded-md border border-dashed border-slate-300" />
                           ) : null}
                           {tasks.map(t => (
-                            <TaskCard key={t.id} task={t} dragDisabled={dragMode==='col'} onClick={() => openEditTask(t.id)} />
+                            <TaskCard key={t.id} task={t} dragDisabled={dragMode === 'col'} onClick={() => openEditTask(t.id)} />
                           ))}
                         </Column>
                       </SortableContext>
@@ -535,7 +706,6 @@ export default function BoardPage() {
         </DndContext>
       </div>
 
-      {/* Modals */}
       <AddColumnModal open={openAddColumn} onClose={() => setOpenAddColumn(false)} onCreate={createColumn} />
       <AddCardModal open={!!openAddCardFor} onClose={() => setOpenAddCardFor(null)} onCreate={createCard} defaultStatus={openAddCardFor || ''} />
       <EditColumnModal open={!!editColKey} onClose={() => setEditColKey(null)} column={statuses.find(s => s.key === editColKey) || null} onSave={saveEditColumn} onDelete={deleteColumn} isDeletable={(groupByStatus(items, statuses)[editColKey]?.length || 0) === 0} />
