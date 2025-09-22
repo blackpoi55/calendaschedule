@@ -211,7 +211,7 @@ function AddRoleModal({ data = [], onClose, refresh }) {
           </form>
 
           {/* ตารางรายการ */}
-          <div className="overflow-auto border rounded-xl max-h-[60vh]">
+          <div className="overflow-auto border rounded-xl max-h-[40vh]">
             <table className="w-full">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
