@@ -2,10 +2,8 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import dayjs from "dayjs";
-import isoWeek from "dayjs/plugin/isoWeek";
-import "gantt-task-react/dist/index.css";
-import { Gantt, ViewMode } from "@wamra/gantt-task-react";
-import "@wamra/gantt-task-react/dist/index.css";
+import isoWeek from "dayjs/plugin/isoWeek"; 
+import { Gantt, ViewMode } from "@wamra/gantt-task-react"; 
 
 dayjs.extend(isoWeek);
 

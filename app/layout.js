@@ -1,5 +1,6 @@
 import { Sarabun } from "next/font/google";
 import "./globals.css"; 
+import "@wamra/gantt-task-react/dist/style.css";
 const sarabun = Sarabun({
   weight: ['400', '700'], // You can specify the weights you want to include
   subsets: ['latin'], // You can specify the subsets you want to include
