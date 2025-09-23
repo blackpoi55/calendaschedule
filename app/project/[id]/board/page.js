@@ -1,15 +1,12 @@
 'use client'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  DndContext, DragOverlay,
-  PointerSensor, KeyboardSensor, useSensor, useSensors
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, useDroppable
 } from '@dnd-kit/core'
 import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-  horizontalListSortingStrategy,
-  arrayMove
+  SortableContext, useSortable,
+  verticalListSortingStrategy, horizontalListSortingStrategy, arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { closestCorners, closestCenter } from '@dnd-kit/core'
@@ -61,8 +58,6 @@ const groupByStatus = (items, statuses) => {
   statuses.forEach(({ key }) => { g[key] = items.filter(i => i.status === key).sort(byPos) })
   return g
 }
-const parseLabels = (text = '') =>
-  text.split(',').map(s => s.trim()).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
 
 // ===== Status meta + order =====
 const STATUS_META = {
@@ -81,10 +76,10 @@ function deriveStatusesFromData(resp) {
   return base.map(k => ({ key: k, label: STATUS_META[k].label, theme: STATUS_META[k].theme, icon: STATUS_META[k].icon }))
 }
 
+// --- map rows => items { assignees: [{id,name}], labels:[{id,name}] }
 function adaptProjectTasksToBoard(resp) {
   const rows = Array.isArray(resp?.data) ? resp.data : []
-  const bucket = {}
-  STATUS_ORDER.forEach(k => { bucket[k] = [] })
+  const bucket = {}; STATUS_ORDER.forEach(k => { bucket[k] = [] })
 
   const safeTs = (s) => {
     const t = s ? Date.parse(s) : NaN
@@ -92,27 +87,39 @@ function adaptProjectTasksToBoard(resp) {
   }
 
   rows.forEach(r => {
-    const roleLabels = (r?.ProjectTaskAssignments || [])
-      .flatMap(a => [a?.role?.name])
+    const roleObjs = (r?.ProjectTaskAssignments || [])
+      .map(a => a?.role)
       .filter(Boolean)
+      .map(role => ({ id: role.id ?? null, name: role.name }))
+      .filter(x => x.name)
 
-    const assignees = (r?.ProjectTaskAssignments || [])
-      .map(a => a?.user?.name)
+    const userObjs = (r?.ProjectTaskAssignments || [])
+      .map(a => a?.user)
       .filter(Boolean)
+      .map(u => ({ id: u.id ?? null, name: u.name }))
+      .filter(x => x.name)
+
+    // fallback: ถ้า backend ส่งแค่ string
+    const labels = (Array.isArray(r?.labels) ? r.labels : []).map(l => (typeof l === 'string' ? { id: null, name: l } : l))
+    const assignees = (Array.isArray(r?.assignees) ? r.assignees : []).map(a => (typeof a === 'string' ? { id: null, name: a } : a))
+
+    const mergedLabels = dedupeByName([...roleObjs, ...labels])
+    const mergedAssignees = dedupeByName([...userObjs, ...assignees])
 
     const status = (r?.status && STATUS_ORDER.includes(r.status)) ? r.status : 'TODO'
 
     const item = {
       id: r.id,
-      title: r.name,
+      title: r.name ?? r.title,
       status,
       position: 0,
-      labels: Array.from(new Set(roleLabels)),
-      assignees,
-      due_date: r?.end_date || undefined,
-      note: r?.description || '',
+      labels: mergedLabels,
+      assignees: mergedAssignees,
+      due_date: r?.end_date || r?.due_date || undefined,
+      note: r?.description || r?.note || '',
       createdAt: safeTs(r?.created_at),
       updatedAt: safeTs(r?.updated_at || r?.created_at),
+      assignee: mergedAssignees[0]?.name || null, // คง field เดิมไว้เผื่อใช้งาน
     }
     if (!bucket[status]) bucket[status] = []
     bucket[status].push(item)
@@ -132,6 +139,14 @@ function adaptProjectTasksToBoard(resp) {
 
   return items
 }
+const dedupeByName = (arr) => {
+  const seen = new Set()
+  return (arr || []).filter(x => {
+    const key = (x?.name || '').toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key); return true
+  })
+}
 
 // ========= React-Select Styles =========
 const rsStyles = {
@@ -146,20 +161,15 @@ const rsStyles = {
     fontSize: 14,
   }),
   valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
-  multiValue: (base) => ({
-    ...base,
-    backgroundColor: '#eef2ff',
-    borderRadius: 9999,
-    paddingRight: 2,
-  }),
+  multiValue: (base) => ({ ...base, backgroundColor: '#eef2ff', borderRadius: 9999, paddingRight: 2 }),
   multiValueLabel: (base) => ({ ...base, color: '#4338ca', fontSize: 12 }),
-  multiValueRemove: (base) => ({
-    ...base,
-    color: '#4f46e5',
-    ':hover': { backgroundColor: '#e0e7ff', color: '#3730a3' },
-  }),
+  multiValueRemove: (base) => ({ ...base, color: '#4f46e5', ':hover': { backgroundColor: '#e0e7ff', color: '#3730a3' } }),
   menu: (base) => ({ ...base, zIndex: 50 }),
 }
+
+// ========= Drag ids =========
+const colDragId = (key) => `col:${key}`
+const parseColId = (id) => (typeof id === 'string' && id.startsWith('col:')) ? id.slice(4) : null
 
 // ========= Card =========
 function TaskCard({ task, onClick, dragDisabled }) {
@@ -167,6 +177,9 @@ function TaskCard({ task, onClick, dragDisabled }) {
     id: task.id,
     disabled: !!dragDisabled
   })
+  const assigneeText = Array.isArray(task.assignees) && task.assignees.length
+    ? task.assignees.map(a => a.name).join(', ')
+    : '-'
   return (
     <div
       ref={setNodeRef}
@@ -179,17 +192,17 @@ function TaskCard({ task, onClick, dragDisabled }) {
         <h4 className="font-medium text-gray-900 leading-tight">{task.title}</h4>
         <span className="text-xs text-gray-400 select-none">#{task.id}</span>
       </div>
-      {task.labels?.length ? (
+      {Array.isArray(task.labels) && task.labels.length ? (
         <div className="mt-1 flex flex-wrap gap-1">
           {task.labels.map(l => (
-            <span key={l} className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{l}</span>
+            <span key={l.name} className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+              {l.name}
+            </span>
           ))}
         </div>
       ) : null}
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
-        <span>
-          👤 {task.assignees?.length ? task.assignees.join(', ') : '-'}
-        </span>
+        <span>👤 {assigneeText}</span>
         {task.due_date && <span className="text-right">📅 {new Date(task.due_date).toLocaleDateString('th-TH')}</span>}
       </div>
       {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {task.note}</div> : null}
@@ -199,7 +212,7 @@ function TaskCard({ task, onClick, dragDisabled }) {
 
 // ========= Column (Sortable Shell) =========
 function SortableColumnShell({ colKey, children }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: colKey })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: colDragId(colKey) })
   return (
     <div
       ref={setNodeRef}
@@ -213,9 +226,25 @@ function SortableColumnShell({ colKey, children }) {
   )
 }
 
-function Column({ status, label, tasks, styleClass, dotClass, onAddTask, onEditColumn, children }) {
+function ColumnDropArea({ id, children }) {
+  // ⭐ ทำให้ “คอลัมน์” เป็น droppable สำหรับการ์ด “ตลอดเวลา”
+  const { setNodeRef, isOver } = useDroppable({ id })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 space-y-2 overflow-y-auto p-3 rounded-b-2xl ${
+        isOver ? 'outline outline-2 outline-indigo-300/60' : ''
+      }`}
+    >
+      {children}
+    </div>
+  )
+}
+
+function Column({ status, label, styleClass, dotClass, onAddTask, onEditColumn, children }) {
   return (
     <div className={`flex h-full flex-col rounded-2xl border shadow-sm hover:shadow ${styleClass || DEFAULT_COL_STYLE}`}>
+      {/* sticky header */}
       <div className="sticky top-0 z-10 -m-px rounded-t-2xl border-b bg-white/80 backdrop-blur px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -228,9 +257,9 @@ function Column({ status, label, tasks, styleClass, dotClass, onAddTask, onEditC
           </div>
         </div>
       </div>
-      <div className="flex-1 space-y-2 overflow-y-auto p-3">
-        {children}
-      </div>
+
+      {/* list area (droppable) */}
+      {children}
     </div>
   )
 }
@@ -314,7 +343,7 @@ function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable 
   const [label, setLabel] = useState(column?.label || '')
   const [icon, setIcon] = useState(column?.icon || COLUMN_ICONS[0])
   const [theme, setTheme] = useState(column?.theme || COLUMN_THEMES[0].key)
-  React.useEffect(() => { setLabel(column?.label || ''); setIcon(column?.icon || COLUMN_ICONS[0]); setTheme(column?.theme || COLUMN_THEMES[0].key) }, [column])
+  useEffect(() => { setLabel(column?.label || ''); setIcon(column?.icon || COLUMN_ICONS[0]); setTheme(column?.theme || COLUMN_THEMES[0].key) }, [column])
   if (!open || !column) return null
   return (
     <ModalShell
@@ -397,8 +426,8 @@ function AddCardModal({
   memberOptions, roleOptions
 }) {
   const [title, setTitle] = useState('งานใหม่')
-  const [assignees, setAssignees] = useState([])
-  const [labels, setLabels] = useState([])
+  const [assignees, setAssignees] = useState([]) // option[]
+  const [labels, setLabels] = useState([])       // option[]
   const [due, setDue] = useState('')
   const [note, setNote] = useState('')
 
@@ -409,14 +438,16 @@ function AddCardModal({
       title="เพิ่มการ์ดใหม่"
       onClose={onClose}
       onSubmit={() => {
+        const assArr = (assignees || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
+        const labArr = (labels || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
         onCreate({
           title: title.trim() || 'งานใหม่',
-          labels: labels.map(l => l.value),
+          labels: labArr,
           due_date: due || undefined,
           note: note.trim(),
           status: defaultStatus,
-          assignees: assignees.map(a => a.value),
-          assignee: assignees[0]?.value || null,
+          assignees: assArr,
+          assignee: assArr[0]?.name || null,
         })
       }}
       submitText="เพิ่มการ์ด"
@@ -442,21 +473,25 @@ function EditCardModal({
   memberOptions, roleOptions
 }) {
   const [title, setTitle] = useState(task?.title || '')
-  const [assignees, setAssignees] = useState([])
-  const [labels, setLabels] = useState([])
+  const [assignees, setAssignees] = useState([]) // option[]
+  const [labels, setLabels] = useState([])       // option[]
   const [due, setDue] = useState(task?.due_date || '')
   const [note, setNote] = useState(task?.note || '')
 
-  // สร้าง option จาก string ถ้าไม่มีใน pool
-  const toOptions = (vals, pool) => {
-    const map = new Map((pool || []).map(o => [o.value, o]))
-    return (vals || []).map(v => map.get(v) || ({ value: v, label: v }))
+  const toOptions = (objs, pool) => {
+    // map [{id,name}] => option (match by id, fallback by name)
+    const byId = new Map((pool || []).map(o => [o.value?.id ?? o.value, o]))
+    const byName = new Map((pool || []).map(o => [o.label, o]))
+    return (objs || []).map(x => {
+      if (x?.id != null && byId.has(x.id)) return byId.get(x.id)
+      if (x?.name && byName.has(x.name)) return byName.get(x.name)
+      return { value: { id: x?.id ?? null, name: x?.name ?? String(x) }, label: x?.name ?? String(x) }
+    })
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     setTitle(task?.title || '')
-    const initialAssignees = Array.isArray(task?.assignees) ? task.assignees : (task?.assignee ? [task.assignee] : [])
-    setAssignees(toOptions(initialAssignees, memberOptions))
+    setAssignees(toOptions(task?.assignees || (task?.assignee ? [{ id: null, name: task.assignee }] : []), memberOptions))
     setLabels(toOptions(task?.labels || [], roleOptions))
     setDue(task?.due_date || '')
     setNote(task?.note || '')
@@ -469,14 +504,15 @@ function EditCardModal({
       title={`แก้ไขการ์ด #${task.id}`}
       onClose={onClose}
       onSubmit={() => {
-        const assigneesArr = assignees.map(a => a.value)
+        const assArr = (assignees || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
+        const labArr = (labels || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
         onSave({
           title: title.trim() || 'งานใหม่',
-          labels: labels.map(l => l.value),
+          labels: labArr,
           due_date: due || undefined,
           note: note.trim(),
-          assignees: assigneesArr,
-          assignee: assigneesArr[0] || null,
+          assignees: assArr,
+          assignee: assArr[0]?.name || null,
         })
       }}
       submitText="บันทึก"
@@ -503,78 +539,71 @@ function EditCardModal({
 
 // ========= Page =========
 export default function BoardPage() {
-  const [statuses, setStatuses] = useState([]);
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [statuses, setStatuses] = useState([])
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const [activeId, setActiveId] = useState(null);
-  const [dragMode, setDragMode] = useState('none');
+  const [activeId, setActiveId] = useState(null)
+  const [dragMode, setDragMode] = useState('none')
 
-  const [openAddColumn, setOpenAddColumn] = useState(false);
-  const [openAddCardFor, setOpenAddCardFor] = useState(null);
-  const [editColKey, setEditColKey] = useState(null);
-  const [editTaskId, setEditTaskId] = useState(null);
+  const [openAddColumn, setOpenAddColumn] = useState(false)
+  const [openAddCardFor, setOpenAddCardFor] = useState(null)
+  const [editColKey, setEditColKey] = useState(null)
+  const [editTaskId, setEditTaskId] = useState(null)
 
-  const [roleMap, setroleMap] = useState([]);     // [{id,name,...}]
-  const [memberMap, setmemberMap] = useState([]); // [{id,name,email,...}]
+  const [roleMap, setroleMap] = useState([])     // [{id,name,...}]
+  const [memberMap, setmemberMap] = useState([]) // [{id,name,email,...}]
 
-  const nextTaskIdRef = useRef(1);
+  const nextTaskIdRef = useRef(1)
 
-  // ===== API endpoints (ปรับตามระบบจริงได้) =====
-  const ROLE_URL   = `${API}/projectRole/search`;
-  const MEMBER_URL = `${API}/projectMember/search`;
- 
+  // ===== API endpoints =====
+  const ROLE_URL   = `${API}/projectRole/search`
+  const MEMBER_URL = `${API}/projectMember/search`
 
   async function fetchTasks(projectId = '5') {
     try {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null)
 
       const res = await fetch(`${API}/projectTask/searchProjectTaskAssignment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: projectId }),
-      });
-
+      })
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} ${res.statusText} ${text ? `- ${text}` : ''}`);
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText} ${text ? `- ${text}` : ''}`)
       }
+      const data = await res.json()
+      const nextStatuses = deriveStatusesFromData(data)
+      const nextItems = adaptProjectTasksToBoard(data)
 
-      const data = await res.json();
-      const nextStatuses = deriveStatusesFromData(data);
-      const nextItems = adaptProjectTasksToBoard(data);
+      setStatuses(nextStatuses)
+      setItems(nextItems)
 
-      setStatuses(nextStatuses);
-      setItems(nextItems);
+      const maxId = nextItems.length ? Math.max(...nextItems.map(t => t.id)) : 0
+      nextTaskIdRef.current = maxId + 1
 
-      const maxId = nextItems.length ? Math.max(...nextItems.map(t => t.id)) : 0;
-      nextTaskIdRef.current = maxId + 1;
-
-      const role = await getrole();
-      setroleMap(role?.data || []);
-      const member = await getmember();
-      setmemberMap(member?.data || []);
+      const role = await getrole()
+      setroleMap(role?.data || [])
+      const member = await getmember()
+      setmemberMap(member?.data || [])
     } catch (e) {
-      console.error(e);
-      setError(e?.message || 'Load failed');
+      console.error(e)
+      setError(e?.message || 'Load failed')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchTasks('5');
-  }, []);
+  useEffect(() => { fetchTasks('5') }, [])
 
   // ===== React-Select Options =====
   const roleOptions = useMemo(
-    () => (roleMap || []).map(r => ({ value: r.name, label: r.name })),
+    () => (roleMap || []).map(r => ({ value: { id: r.id ?? null, name: r.name }, label: r.name })),
     [roleMap]
   )
   const memberOptions = useMemo(
-    () => (memberMap || []).map(m => ({ value: m.name, label: m.name })),
+    () => (memberMap || []).map(m => ({ value: { id: m.id ?? null, name: m.name }, label: m.name })),
     [memberMap]
   )
 
@@ -586,31 +615,32 @@ export default function BoardPage() {
   const cols = useMemo(() => groupByStatus(items, statuses), [items, statuses])
   const activeTask = useMemo(() => items.find(t => t.id === activeId) || null, [activeId, items])
 
-  const isColumnId = (id) => typeof id === 'string' && statuses.some(s => s.key === id)
-
+  // --- collision เฉพาะคอลัมน์ตอนลากคอลัมน์
   const columnOnlyCollision = (args) => {
-    const columnIds = new Set(statuses.map(s => s.key))
-    const filtered = args.droppableContainers.filter(c => columnIds.has(c.id))
+    const allowed = new Set(statuses.map(s => colDragId(s.key)))
+    const filtered = args.droppableContainers.filter(c => allowed.has(c.id))
     return closestCenter({ ...args, droppableContainers: filtered })
   }
 
   function onDragStart(e) {
     setActiveId(e.active.id)
-    setDragMode(isColumnId(e.active.id) ? 'col' : 'card')
+    setDragMode(parseColId(e.active.id) ? 'col' : 'card')
   }
 
   function onDragEnd(e) {
     const { active, over } = e
     setActiveId(null)
-    const mode = isColumnId(active.id) ? 'col' : 'card'
+    const mode = parseColId(active.id) ? 'col' : 'card'
     setDragMode('none')
     if (!over) return
 
     // A) ลากคอลัมน์
+    const activeColKey = parseColId(active.id)
     if (mode === 'col') {
-      if (!isColumnId(over.id) || active.id === over.id) return
-      const oldIndex = statuses.findIndex(s => s.key === active.id)
-      const newIndex = statuses.findIndex(s => s.key === over.id)
+      const overColKey = parseColId(over.id)
+      if (!overColKey || activeColKey === overColKey) return
+      const oldIndex = statuses.findIndex(s => s.key === activeColKey)
+      const newIndex = statuses.findIndex(s => s.key === overColKey)
       setStatuses(arrayMove(statuses, oldIndex, newIndex))
       return
     }
@@ -647,9 +677,9 @@ export default function BoardPage() {
       write(origin, from); write(target, to); setItems(next); return
     }
 
-    // วางบนคอลัมน์
-    if (isColumnId(over.id)) {
-      const dropCol = over.id
+    // วางลงคอลัมน์ (ปลายทางเป็น id = status key) — รองรับคอลัมน์ว่าง
+    const dropCol = statuses.find(s => s.key === over.id)?.key
+    if (dropCol) {
       const from = a.status
       const origin = next.filter(t => t.status === from).sort(byPos).filter(t => t.id !== a.id)
       const target = next.filter(t => t.status === dropCol).sort(byPos)
@@ -676,9 +706,9 @@ export default function BoardPage() {
     const lastPos = Math.max(-1, ...items.filter(t => t.status === status).map(t => t.position))
     const newTask = {
       id, title: payload.title, status, position: lastPos + 1,
-      labels: payload.labels,
-      assignees: payload.assignees || (payload.assignee ? [payload.assignee] : []),
-      assignee: payload.assignee || null,
+      labels: (payload.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
+      assignees: (payload.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
+      assignee: payload.assignee || (payload.assignees?.[0]?.name ?? null),
       due_date: payload.due_date,
       note: payload.note || '',
       createdAt: now(), updatedAt: now()
@@ -702,7 +732,14 @@ export default function BoardPage() {
   const editingTask = useMemo(() => items.find(t => t.id === editTaskId) || null, [editTaskId, items])
   function openEditTask(taskId) { setEditTaskId(taskId) }
   function saveEditTask(payload) {
-    setItems(prev => prev.map(t => t.id === editTaskId ? { ...t, ...payload, updatedAt: now() } : t))
+    setItems(prev => prev.map(t => t.id === editTaskId ? {
+      ...t,
+      ...payload,
+      labels: (payload.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
+      assignees: (payload.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
+      assignee: payload.assignee || (payload.assignees?.[0]?.name ?? null),
+      updatedAt: now()
+    } : t))
     setEditTaskId(null)
   }
   function deleteTask() {
@@ -710,20 +747,50 @@ export default function BoardPage() {
     setEditTaskId(null)
   }
 
-  const dndCollision = dragMode === 'col' ? columnOnlyCollision : closestCorners
+  // ---- DnD dynamic options ----
+  const dndCollision = dragMode === 'col' ? (args) => {
+    const allowed = new Set(statuses.map(s => colDragId(s.key)))
+    const filtered = args.droppableContainers.filter(c => allowed.has(c.id))
+    return closestCenter({ ...args, droppableContainers: filtered })
+  } : closestCorners
   const dndModifiers = dragMode === 'col' ? [restrictToHorizontalAxis] : undefined
+
+  // ---- SAVE (log payload) ----
+  function onSaveBoard() {
+    const normalized = normalize(items, statuses)
+    const payload = {
+      statuses: statuses.map((s, idx) => ({ key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx })),
+      tasks: normalized.map(t => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        position: t.position,
+        labels: (t.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
+        assignees: (t.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
+        due_date: t.due_date || null,
+        note: t.note || '',
+        updatedAt: t.updatedAt || now(),
+      })),
+    }
+    console.log('KANBAN_SAVE_PAYLOAD', payload)
+    // ตัวอย่าง ถ้าจะยิง API:
+    // fetch(`${API}/kanban/save`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+  }
 
   return (
     <div className="mx-auto min-h-screen bg-gradient-to-b from-gray-50 to-white">
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 onClick={()=>console.log("statuses",statuses,"items",items)} className="text-2xl font-bold">Kanban (จาก Payload)</h1>
+            <h1 className="text-2xl font-bold">Kanban (จาก Payload)</h1>
             <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setOpenAddColumn(true)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-white hover:bg-gray-50 shadow-sm">
               <span className="text-lg">➕</span> เพิ่มคอลัมน์
+            </button>
+            <button onClick={onSaveBoard} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">
+              💾 บันทึก
             </button>
           </div>
         </div>
@@ -741,7 +808,8 @@ export default function BoardPage() {
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
-          <SortableContext items={statuses.map(s => s.key)} strategy={horizontalListSortingStrategy}>
+          {/* ชั้นคอลัมน์: ใช้ id = col:<key> สำหรับลากสลับคอลัมน์ */}
+          <SortableContext items={statuses.map(s => colDragId(s.key))} strategy={horizontalListSortingStrategy}>
             <div className="h-[calc(100vh-160px)] w-full overflow-x-auto overflow-y-hidden">
               <div className="flex h-full gap-4 pr-4">
                 {statuses.map(({ key, label, theme, icon }) => {
@@ -753,18 +821,20 @@ export default function BoardPage() {
                         <Column
                           status={key}
                           label={`${icon ? icon + ' ' : ''}${label}`}
-                          tasks={tasks}
                           styleClass={box}
                           dotClass={dot}
                           onAddTask={() => setOpenAddCardFor(key)}
                           onEditColumn={openEditColumn}
                         >
-                          {tasks.length === 0 ? (
-                            <div className="min-h-[80px] rounded-md border border-dashed border-slate-300" />
-                          ) : null}
-                          {tasks.map(t => (
-                            <TaskCard key={t.id} task={t} dragDisabled={dragMode === 'col'} onClick={() => openEditTask(t.id)} />
-                          ))}
+                          {/* ⭐ Droppable ของคอลัมน์ (รับการ์ดเสมอ—even ว่าง) */}
+                          <ColumnDropArea id={key}>
+                            {tasks.length === 0 ? (
+                              <div className="min-h-[80px] rounded-md border border-dashed border-slate-300" />
+                            ) : null}
+                            {tasks.map(t => (
+                              <TaskCard key={t.id} task={t} dragDisabled={dragMode === 'col'} onClick={() => openEditTask(t.id)} />
+                            ))}
+                          </ColumnDropArea>
                         </Column>
                       </SortableContext>
                     </SortableColumnShell>
@@ -776,12 +846,15 @@ export default function BoardPage() {
 
           <DragOverlay>
             <div className="rounded-xl border bg-white p-3 shadow-lg">
-              {isColumnId(activeId) ? (statuses.find(s => s.key === activeId)?.label || null) : (activeTask?.title || null)}
+              {parseColId(activeId)
+                ? (statuses.find(s => s.key === parseColId(activeId))?.label || null)
+                : (activeTask?.title || null)}
             </div>
           </DragOverlay>
         </DndContext>
       </div>
 
+      {/* Modals */}
       <AddColumnModal open={openAddColumn} onClose={() => setOpenAddColumn(false)} onCreate={createColumn} />
 
       <AddCardModal
