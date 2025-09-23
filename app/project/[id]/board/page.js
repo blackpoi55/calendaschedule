@@ -16,11 +16,10 @@ import { closestCorners, closestCenter } from '@dnd-kit/core'
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
 import { API } from '@/config'
 
-
-
-
-// next id จะตั้งหลังโหลดเสร็จ
-
+// React Select
+import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
+import { getmember, getrole } from '@/action/api'
 
 // ========= Presets =========
 const COLUMN_THEMES = [
@@ -35,8 +34,6 @@ const COLUMN_THEMES = [
 const COLUMN_ICONS = ['📋', '⚙️', '🧪', '✅', '📝', '🚧', '🔍', '💡', '🎯', '🧱']
 const DEFAULT_COL_STYLE = 'bg-slate-50 border-slate-200'
 const defaultDot = 'bg-slate-400'
-
-// ====== ใช้ payload ที่ให้มา ======
 
 // ========= Helpers =========
 const byPos = (a, b) => a.position - b.position
@@ -67,7 +64,7 @@ const groupByStatus = (items, statuses) => {
 const parseLabels = (text = '') =>
   text.split(',').map(s => s.trim()).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)
 
-// ===== Status meta + order (JS object/array ธรรมดา) =====
+// ===== Status meta + order =====
 const STATUS_META = {
   TODO: { label: 'To Do', theme: 'gray', icon: '📋' },
   DOING: { label: 'Doing', theme: 'blue', icon: '⚙️' },
@@ -96,7 +93,7 @@ function adaptProjectTasksToBoard(resp) {
 
   rows.forEach(r => {
     const roleLabels = (r?.ProjectTaskAssignments || [])
-      .flatMap(a => [a?.role?.name])   // ถ้าจะรวม user ด้วย ก็ใส่ a?.user?.name ด้วย
+      .flatMap(a => [a?.role?.name])
       .filter(Boolean)
 
     const assignees = (r?.ProjectTaskAssignments || [])
@@ -134,6 +131,34 @@ function adaptProjectTasksToBoard(resp) {
   })
 
   return items
+}
+
+// ========= React-Select Styles =========
+const rsStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 38,
+    borderRadius: 8,
+    borderColor: state.isFocused ? '#6366f1' : '#e5e7eb',
+    boxShadow: state.isFocused ? '0 0 0 3px rgba(99,102,241,0.15)' : 'none',
+    '&:hover': { borderColor: state.isFocused ? '#6366f1' : '#d1d5db' },
+    backgroundColor: 'white',
+    fontSize: 14,
+  }),
+  valueContainer: (base) => ({ ...base, padding: '2px 8px' }),
+  multiValue: (base) => ({
+    ...base,
+    backgroundColor: '#eef2ff',
+    borderRadius: 9999,
+    paddingRight: 2,
+  }),
+  multiValueLabel: (base) => ({ ...base, color: '#4338ca', fontSize: 12 }),
+  multiValueRemove: (base) => ({
+    ...base,
+    color: '#4f46e5',
+    ':hover': { backgroundColor: '#e0e7ff', color: '#3730a3' },
+  }),
+  menu: (base) => ({ ...base, zIndex: 50 }),
 }
 
 // ========= Card =========
@@ -235,6 +260,7 @@ function ModalShell({ title, children, onClose, onSubmit, submitText = 'บั�
     </>
   )
 }
+
 function ColumnForm({ label, setLabel, icon, setIcon, theme, setTheme, readonlyKey }) {
   return (
     <div className="space-y-4">
@@ -271,6 +297,7 @@ function ColumnForm({ label, setLabel, icon, setIcon, theme, setTheme, readonlyK
     </div>
   )
 }
+
 function AddColumnModal({ open, onClose, onCreate }) {
   const [label, setLabel] = useState('New Column')
   const [icon, setIcon] = useState(COLUMN_ICONS[0])
@@ -282,6 +309,7 @@ function AddColumnModal({ open, onClose, onCreate }) {
     </ModalShell>
   )
 }
+
 function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable }) {
   const [label, setLabel] = useState(column?.label || '')
   const [icon, setIcon] = useState(column?.icon || COLUMN_ICONS[0])
@@ -304,27 +332,57 @@ function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable 
     </ModalShell>
   )
 }
-function CardForm({ title, setTitle, assignee, setAssignee, labelsText, setLabelsText, due, setDue, note, setNote }) {
+
+/** ------------------ Card Form (React Select Multi) ------------------ */
+function CardFormRS({
+  title, setTitle,
+  assigneeOptions, assigneeValues, setAssigneeValues,
+  labelOptions, labelValues, setLabelValues,
+  due, setDue,
+  note, setNote
+}) {
   return (
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium">หัวข้อ</label>
         <input value={title} onChange={e => setTitle(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น ออกแบบหน้า Dashboard" />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+
+      <div className="grid grid-cols-1 gap-4">
         <div>
           <label className="block text-sm font-medium">ผู้รับผิดชอบ</label>
-          <input value={assignee} onChange={e => setAssignee(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น Somchai" />
+          <Select
+            isMulti
+            options={assigneeOptions}
+            value={assigneeValues}
+            onChange={(vals) => setAssigneeValues(vals || [])}
+            styles={rsStyles}
+            placeholder="เลือกผู้รับผิดชอบ..."
+            className="mt-1"
+            classNamePrefix="rs"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium">วันครบกำหนด</label>
           <input type="date" value={due} onChange={e => setDue(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" />
         </div>
       </div>
+
       <div>
-        <label className="block text-sm font-medium">ป้าย (คั่นด้วย ,)</label>
-        <input value={labelsText} onChange={e => setLabelsText(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="เช่น FE, Urgent" />
+        <label className="block text-sm font-medium">ป้าย (Labels)</label>
+        <CreatableSelect
+          isMulti
+          options={labelOptions}
+          value={labelValues}
+          onChange={(vals) => setLabelValues(vals || [])}
+          styles={rsStyles}
+          placeholder="เลือก/พิมพ์เพื่อสร้างป้าย..."
+          className="mt-1"
+          classNamePrefix="rs"
+          formatCreateLabel={(input) => `สร้าง "${input}"`}
+        />
       </div>
+
       <div>
         <label className="block text-sm font-medium">โน้ตย่อ</label>
         <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="รายละเอียดเพิ่มเติม..." />
@@ -332,49 +390,77 @@ function CardForm({ title, setTitle, assignee, setAssignee, labelsText, setLabel
     </div>
   )
 }
-function AddCardModal({ open, onClose, onCreate, defaultStatus }) {
+
+/** ------------------ Add Card Modal ------------------ */
+function AddCardModal({
+  open, onClose, onCreate, defaultStatus,
+  memberOptions, roleOptions
+}) {
   const [title, setTitle] = useState('งานใหม่')
-  const [assignee, setAssignee] = useState('')
-  const [labelsText, setLabelsText] = useState('')
+  const [assignees, setAssignees] = useState([])
+  const [labels, setLabels] = useState([])
   const [due, setDue] = useState('')
   const [note, setNote] = useState('')
+
   if (!open) return null
+
   return (
-    <ModalShell title="เพิ่มการ์ดใหม่" onClose={onClose} onSubmit={() => onCreate({
-      title: title.trim() || 'งานใหม่',
-      assignee: assignee.trim() || null,
-      labels: parseLabels(labelsText),
-      due_date: due || undefined,
-      note: note.trim(),
-      status: defaultStatus
-    })} submitText="เพิ่มการ์ด">
-      <CardForm {...{ title, setTitle, assignee, setAssignee, labelsText, setLabelsText, due, setDue, note, setNote }} />
+    <ModalShell
+      title="เพิ่มการ์ดใหม่"
+      onClose={onClose}
+      onSubmit={() => {
+        onCreate({
+          title: title.trim() || 'งานใหม่',
+          labels: labels.map(l => l.value),
+          due_date: due || undefined,
+          note: note.trim(),
+          status: defaultStatus,
+          assignees: assignees.map(a => a.value),
+          assignee: assignees[0]?.value || null,
+        })
+      }}
+      submitText="เพิ่มการ์ด"
+    >
+      <CardFormRS
+        title={title} setTitle={setTitle}
+        assigneeOptions={memberOptions}
+        assigneeValues={assignees}
+        setAssigneeValues={setAssignees}
+        labelOptions={roleOptions}
+        labelValues={labels}
+        setLabelValues={setLabels}
+        due={due} setDue={setDue}
+        note={note} setNote={setNote}
+      />
     </ModalShell>
   )
 }
-function EditCardModal({ open, onClose, task, onSave, onDelete }) {
+
+/** ------------------ Edit Card Modal ------------------ */
+function EditCardModal({
+  open, onClose, task, onSave, onDelete,
+  memberOptions, roleOptions
+}) {
   const [title, setTitle] = useState(task?.title || '')
-  // รับหลายคนเป็น CSV string; ถ้า task.assignees เป็น array จะ join ให้
-  const [assignee, setAssignee] = useState(
-    Array.isArray(task?.assignees)
-      ? task.assignees.join(', ')
-      : (task?.assignee || '')
-  )
-  const [labelsText, setLabelsText] = useState((task?.labels || []).join(', '))
+  const [assignees, setAssignees] = useState([])
+  const [labels, setLabels] = useState([])
   const [due, setDue] = useState(task?.due_date || '')
   const [note, setNote] = useState(task?.note || '')
 
+  // สร้าง option จาก string ถ้าไม่มีใน pool
+  const toOptions = (vals, pool) => {
+    const map = new Map((pool || []).map(o => [o.value, o]))
+    return (vals || []).map(v => map.get(v) || ({ value: v, label: v }))
+  }
+
   React.useEffect(() => {
     setTitle(task?.title || '')
-    setAssignee(
-      Array.isArray(task?.assignees)
-        ? task.assignees.join(', ')
-        : (task?.assignee || '')
-    )
-    setLabelsText((task?.labels || []).join(', '))
+    const initialAssignees = Array.isArray(task?.assignees) ? task.assignees : (task?.assignee ? [task.assignee] : [])
+    setAssignees(toOptions(initialAssignees, memberOptions))
+    setLabels(toOptions(task?.labels || [], roleOptions))
     setDue(task?.due_date || '')
     setNote(task?.note || '')
-  }, [task])
+  }, [task, memberOptions, roleOptions])
 
   if (!open || !task) return null
 
@@ -383,82 +469,40 @@ function EditCardModal({ open, onClose, task, onSave, onDelete }) {
       title={`แก้ไขการ์ด #${task.id}`}
       onClose={onClose}
       onSubmit={() => {
-        // แปลง CSV -> array และกันค่าว่างซ้ำซ้อนด้วย parseLabels เดิม
-        const assigneesArr = parseLabels(assignee) // ['Ann UX','John Dev', ...]
+        const assigneesArr = assignees.map(a => a.value)
         onSave({
           title: title.trim() || 'งานใหม่',
-          // คงส่ง labels เป็น array เดิม
-          labels: parseLabels(labelsText),
+          labels: labels.map(l => l.value),
           due_date: due || undefined,
           note: note.trim(),
-          // ใหม่: ส่งทั้งแบบหลายคน (assignees) และสำรองเป็นคนแรก (assignee) เพื่อรองรับ UI เก่า
           assignees: assigneesArr,
           assignee: assigneesArr[0] || null,
         })
       }}
       submitText="บันทึก"
       extraLeft={
-        <button
-          onClick={onDelete}
-          className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-        >
+        <button onClick={onDelete} className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">
           ลบการ์ด
         </button>
       }
     >
-      {/* ช่องผู้รับผิดชอบยังใช้ input เดิม แต่อนุญาตให้กรอกหลายชื่อคั่นด้วย , */}
-      <CardForm
-        {...{
-          title,
-          setTitle,
-          assignee,        // CSV string
-          setAssignee,     // setter ของ CSV
-          labelsText,
-          setLabelsText,
-          due,
-          setDue,
-          note,
-          setNote,
-        }}
+      <CardFormRS
+        title={title} setTitle={setTitle}
+        assigneeOptions={memberOptions}
+        assigneeValues={assignees}
+        setAssigneeValues={setAssignees}
+        labelOptions={roleOptions}
+        labelValues={labels}
+        setLabelValues={setLabels}
+        due={due} setDue={setDue}
+        note={note} setNote={setNote}
       />
     </ModalShell>
   )
 }
 
-// function EditCardModal({ open, onClose, task, onSave, onDelete }) {
-//   const [title, setTitle] = useState(task?.title || '')
-//   const [assignee, setAssignee] = useState(task?.assignee || '')
-//   const [labelsText, setLabelsText] = useState((task?.labels || []).join(', '))
-//   const [due, setDue] = useState(task?.due_date || '')
-//   const [note, setNote] = useState(task?.note || '')
-//   React.useEffect(() => {
-//     setTitle(task?.title || ''); setAssignee(task?.assignee || '')
-//     setLabelsText((task?.labels || []).join(', ')); setDue(task?.due_date || ''); setNote(task?.note || '')
-//   }, [task])
-//   if (!open || !task) return null
-//   return (
-//     <ModalShell title={`แก้ไขการ์ด #${task.id}`} onClose={onClose}
-//       onSubmit={() => onSave({
-//         title: title.trim() || 'งานใหม่',
-//         assignee: assignee.trim() || null,
-//         labels: parseLabels(labelsText),
-//         due_date: due || undefined,
-//         note: note.trim()
-//       })}
-//       submitText="บันทึก"
-//       extraLeft={<button onClick={onDelete} className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50">ลบการ์ด</button>}
-//     >
-//       <CardForm {...{ title, setTitle, assignee, setAssignee, labelsText, setLabelsText, due, setDue, note, setNote }} />
-//     </ModalShell>
-//   )
-// }
-
 // ========= Page =========
 export default function BoardPage() {
-  // ใช้ statuses/items ที่ได้จาก payload
-  // const INITIAL_STATUSES = deriveStatusesFromData(PROJECT_TASKS_PAYLOAD)
-  // const initialTasks = adaptProjectTasksToBoard(PROJECT_TASKS_PAYLOAD)
-
   const [statuses, setStatuses] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -472,8 +516,15 @@ export default function BoardPage() {
   const [editColKey, setEditColKey] = useState(null);
   const [editTaskId, setEditTaskId] = useState(null);
 
-  // next id จะตั้งหลังโหลดเสร็จ
+  const [roleMap, setroleMap] = useState([]);     // [{id,name,...}]
+  const [memberMap, setmemberMap] = useState([]); // [{id,name,email,...}]
+
   const nextTaskIdRef = useRef(1);
+
+  // ===== API endpoints (ปรับตามระบบจริงได้) =====
+  const ROLE_URL   = `${API}/projectRole/search`;
+  const MEMBER_URL = `${API}/projectMember/search`;
+ 
 
   async function fetchTasks(projectId = '5') {
     try {
@@ -483,7 +534,7 @@ export default function BoardPage() {
       const res = await fetch(`${API}/projectTask/searchProjectTaskAssignment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: projectId }), // ตาม cURL: "id": "5"
+        body: JSON.stringify({ id: projectId }),
       });
 
       if (!res.ok) {
@@ -500,6 +551,11 @@ export default function BoardPage() {
 
       const maxId = nextItems.length ? Math.max(...nextItems.map(t => t.id)) : 0;
       nextTaskIdRef.current = maxId + 1;
+
+      const role = await getrole();
+      setroleMap(role?.data || []);
+      const member = await getmember();
+      setmemberMap(member?.data || []);
     } catch (e) {
       console.error(e);
       setError(e?.message || 'Load failed');
@@ -509,8 +565,18 @@ export default function BoardPage() {
   }
 
   useEffect(() => {
-    fetchTasks('5'); // ถ้าจะทำให้ไดนามิก ค่อยโยกเป็น props/route param
+    fetchTasks('5');
   }, []);
+
+  // ===== React-Select Options =====
+  const roleOptions = useMemo(
+    () => (roleMap || []).map(r => ({ value: r.name, label: r.name })),
+    [roleMap]
+  )
+  const memberOptions = useMemo(
+    () => (memberMap || []).map(m => ({ value: m.name, label: m.name })),
+    [memberMap]
+  )
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -603,18 +669,24 @@ export default function BoardPage() {
     setStatuses(prev => [...prev, { key: finalKey, label, icon, theme }])
     setOpenAddColumn(false)
   }
+
   function createCard(payload) {
     const id = nextTaskIdRef.current++
     const status = payload.status
     const lastPos = Math.max(-1, ...items.filter(t => t.status === status).map(t => t.position))
     const newTask = {
       id, title: payload.title, status, position: lastPos + 1,
-      labels: payload.labels, assignee: payload.assignee, due_date: payload.due_date,
-      note: payload.note || '', createdAt: now(), updatedAt: now()
+      labels: payload.labels,
+      assignees: payload.assignees || (payload.assignee ? [payload.assignee] : []),
+      assignee: payload.assignee || null,
+      due_date: payload.due_date,
+      note: payload.note || '',
+      createdAt: now(), updatedAt: now()
     }
     setItems(prev => normalize([...prev, newTask], statuses))
     setOpenAddCardFor(null)
   }
+
   function openEditColumn(statusKey) { setEditColKey(statusKey) }
   function saveEditColumn({ label, icon, theme }) {
     setStatuses(prev => prev.map(s => s.key === editColKey ? { ...s, label, icon, theme } : s))
@@ -646,7 +718,7 @@ export default function BoardPage() {
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Kanban (จาก Payload)</h1>
+            <h1 onClick={()=>console.log("statuses",statuses,"items",items)} className="text-2xl font-bold">Kanban (จาก Payload)</h1>
             <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
           </div>
           <div className="flex items-center gap-2">
@@ -658,6 +730,10 @@ export default function BoardPage() {
       </header>
 
       <div className="mx-auto max-w-[1600px] px-4">
+        {error ? (
+          <div className="my-4 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{String(error)}</div>
+        ) : null}
+
         <DndContext
           sensors={sensors}
           collisionDetection={dndCollision}
@@ -707,9 +783,34 @@ export default function BoardPage() {
       </div>
 
       <AddColumnModal open={openAddColumn} onClose={() => setOpenAddColumn(false)} onCreate={createColumn} />
-      <AddCardModal open={!!openAddCardFor} onClose={() => setOpenAddCardFor(null)} onCreate={createCard} defaultStatus={openAddCardFor || ''} />
-      <EditColumnModal open={!!editColKey} onClose={() => setEditColKey(null)} column={statuses.find(s => s.key === editColKey) || null} onSave={saveEditColumn} onDelete={deleteColumn} isDeletable={(groupByStatus(items, statuses)[editColKey]?.length || 0) === 0} />
-      <EditCardModal open={!!editTaskId} onClose={() => setEditTaskId(null)} task={items.find(t => t.id === editTaskId) || null} onSave={saveEditTask} onDelete={deleteTask} />
+
+      <AddCardModal
+        open={!!openAddCardFor}
+        onClose={() => setOpenAddCardFor(null)}
+        onCreate={createCard}
+        defaultStatus={openAddCardFor || ''}
+        memberOptions={memberOptions}
+        roleOptions={roleOptions}
+      />
+
+      <EditColumnModal
+        open={!!editColKey}
+        onClose={() => setEditColKey(null)}
+        column={statuses.find(s => s.key === editColKey) || null}
+        onSave={saveEditColumn}
+        onDelete={deleteColumn}
+        isDeletable={(groupByStatus(items, statuses)[editColKey]?.length || 0) === 0}
+      />
+
+      <EditCardModal
+        open={!!editTaskId}
+        onClose={() => setEditTaskId(null)}
+        task={items.find(t => t.id === editTaskId) || null}
+        onSave={saveEditTask}
+        onDelete={deleteTask}
+        memberOptions={memberOptions}
+        roleOptions={roleOptions}
+      />
     </div>
   )
 }
