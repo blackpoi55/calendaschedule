@@ -769,7 +769,7 @@ export default function BoardPage() {
   }
 
   // ---- SAVE (log payload) ----
-  function onSaveBoard() {
+  const onSaveBoard = async () => {
     const normalized = normalize(items, statuses)
     const payload = {
       id: boardId,
@@ -793,7 +793,10 @@ export default function BoardPage() {
     }
     console.log('KANBAN_SAVE_PAYLOAD', payload)
     // ถ้าจะยิงจริง:
-    // fetch(`${API}/kanban/${projectId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    let res = fetch(`${API}/kanban`, { method: 'Post', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    if (!res.ok) {
+      fetchTasks(4)
+    }
   }
 
   return (
@@ -808,7 +811,7 @@ export default function BoardPage() {
             <button onClick={() => setOpenAddColumn(true)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-white hover:bg-gray-50 shadow-sm">
               <span className="text-lg">➕</span> เพิ่มคอลัมน์
             </button>
-            <button onClick={onSaveBoard} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">
+            <button onClick={() => onSaveBoard()} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">
               💾 บันทึก
             </button>
           </div>
