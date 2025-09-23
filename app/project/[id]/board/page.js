@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { closestCorners, closestCenter } from '@dnd-kit/core'
-import { restrictToHorizontalAxis } from '@dnd-kit/modifiers'
+import { restrictToHorizontalAxis, snapCenterToCursor } from '@dnd-kit/modifiers'
 import { API } from '@/config'
 
 // React Select
@@ -35,6 +35,9 @@ const defaultDot = 'bg-slate-400'
 // ========= Helpers =========
 const byPos = (a, b) => a.position - b.position
 const now = () => Date.now()
+const safeNum = (v, d = 0) => {
+  const n = Number(v); return Number.isFinite(n) ? n : d
+}
 const slugify = (txt = '') =>
   (txt.toLowerCase().replace(/[^a-z0-9ก-๙]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 24)) || `col_${Math.random().toString(36).slice(2, 7)}`
 const themeToClass = (themeKey) => {
@@ -59,7 +62,7 @@ const groupByStatus = (items, statuses) => {
   return g
 }
 
-// ===== Status meta + order =====
+// ===== Status meta + fallback order =====
 const STATUS_META = {
   TODO: { label: 'To Do', theme: 'gray', icon: '📋' },
   DOING: { label: 'Doing', theme: 'blue', icon: '⚙️' },
@@ -68,84 +71,41 @@ const STATUS_META = {
 }
 const STATUS_ORDER = ['TODO', 'DOING', 'REVIEW', 'DONE']
 
-function deriveStatusesFromData(resp) {
-  const rows = Array.isArray(resp?.data) ? resp.data : []
+// ---------------- API adapters ----------------
+function deriveStatusesFromApi(resp) {
+  const arr = Array.isArray(resp?.data?.detail?.statuses) ? resp.data.detail.statuses : []
+  if (arr.length) {
+    // ใช้ order จาก API
+    return [...arr].sort((a, b) => safeNum(a.order) - safeNum(b.order)).map(s => ({
+      key: s.key, label: s.label ?? STATUS_META[s.key]?.label ?? s.key,
+      theme: s.theme ?? STATUS_META[s.key]?.theme ?? 'gray',
+      icon: s.icon ?? STATUS_META[s.key]?.icon ?? '📋',
+    }))
+  }
+  // fallback จาก tasks
+  const rows = Array.isArray(resp?.data?.detail?.tasks) ? resp.data.detail.tasks : []
   const present = new Set(rows.map(r => r?.status).filter(Boolean))
-  const order = STATUS_ORDER.filter(k => present.has(k))
-  const base = (order.length ? order : STATUS_ORDER)
+  const ordered = STATUS_ORDER.filter(k => present.has(k))
+  const base = ordered.length ? ordered : STATUS_ORDER
   return base.map(k => ({ key: k, label: STATUS_META[k].label, theme: STATUS_META[k].theme, icon: STATUS_META[k].icon }))
 }
 
-// --- map rows => items { assignees: [{id,name}], labels:[{id,name}] }
-function adaptProjectTasksToBoard(resp) {
-  const rows = Array.isArray(resp?.data) ? resp.data : []
-  const bucket = {}; STATUS_ORDER.forEach(k => { bucket[k] = [] })
-
-  const safeTs = (s) => {
-    const t = s ? Date.parse(s) : NaN
-    return Number.isFinite(t) ? t : Date.now()
-  }
-
-  rows.forEach(r => {
-    const roleObjs = (r?.ProjectTaskAssignments || [])
-      .map(a => a?.role)
-      .filter(Boolean)
-      .map(role => ({ id: role.id ?? null, name: role.name }))
-      .filter(x => x.name)
-
-    const userObjs = (r?.ProjectTaskAssignments || [])
-      .map(a => a?.user)
-      .filter(Boolean)
-      .map(u => ({ id: u.id ?? null, name: u.name }))
-      .filter(x => x.name)
-
-    // fallback: ถ้า backend ส่งแค่ string
-    const labels = (Array.isArray(r?.labels) ? r.labels : []).map(l => (typeof l === 'string' ? { id: null, name: l } : l))
-    const assignees = (Array.isArray(r?.assignees) ? r.assignees : []).map(a => (typeof a === 'string' ? { id: null, name: a } : a))
-
-    const mergedLabels = dedupeByName([...roleObjs, ...labels])
-    const mergedAssignees = dedupeByName([...userObjs, ...assignees])
-
-    const status = (r?.status && STATUS_ORDER.includes(r.status)) ? r.status : 'TODO'
-
-    const item = {
-      id: r.id,
-      title: r.name ?? r.title,
-      status,
-      position: 0,
-      labels: mergedLabels,
-      assignees: mergedAssignees,
-      due_date: r?.end_date || r?.due_date || undefined,
-      note: r?.description || r?.note || '',
-      createdAt: safeTs(r?.created_at),
-      updatedAt: safeTs(r?.updated_at || r?.created_at),
-      assignee: mergedAssignees[0]?.name || null, // คง field เดิมไว้เผื่อใช้งาน
-    }
-    if (!bucket[status]) bucket[status] = []
-    bucket[status].push(item)
-  })
-
-  let items = []
-  STATUS_ORDER.forEach(st => {
-    const list = (bucket[st] || []).sort((a, b) => {
-      const ad = a.due_date ? Date.parse(a.due_date) : Number.POSITIVE_INFINITY
-      const bd = b.due_date ? Date.parse(b.due_date) : Number.POSITIVE_INFINITY
-      if (ad !== bd) return ad - bd
-      return a.id - b.id
-    })
-    list.forEach((t, i) => { t.position = i })
-    items = items.concat(list)
-  })
-
-  return items
-}
-const dedupeByName = (arr) => {
-  const seen = new Set()
-  return (arr || []).filter(x => {
-    const key = (x?.name || '').toLowerCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key); return true
-  })
+function adaptTasksFromApi(resp) {
+  const rows = Array.isArray(resp?.data?.detail?.tasks) ? resp.data.detail.tasks : []
+  // ใช้ position จาก API ตรง ๆ
+  return rows.map(r => ({
+    id: r.id, // string ก็ได้
+    title: r.title ?? '',
+    status: r.status && STATUS_ORDER.includes(r.status) ? r.status : 'TODO',
+    position: safeNum(r.position, 0),
+    labels: (r.labels || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
+    assignees: (r.assignees || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
+    assignee: (r.assignees && r.assignees[0]?.name) || null,
+    due_date: r.due_date || null,
+    note: r.note || '',
+    createdAt: safeNum(r.createdAt ?? r.updatedAt ?? Date.now(), Date.now()),
+    updatedAt: safeNum(r.updatedAt ?? Date.now(), Date.now()),
+  }))
 }
 
 // ========= React-Select Styles =========
@@ -195,7 +155,44 @@ function TaskCard({ task, onClick, dragDisabled }) {
       {Array.isArray(task.labels) && task.labels.length ? (
         <div className="mt-1 flex flex-wrap gap-1">
           {task.labels.map(l => (
-            <span key={l.name} className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+            <span key={`${l.id ?? l.name}`} className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+              {l.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
+        <span>👤 {assigneeText}</span>
+        {task.due_date && <span className="text-right">📅 {new Date(task.due_date).toLocaleDateString('th-TH')}</span>}
+      </div>
+      {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {task.note}</div> : null}
+    </div>
+  )
+}
+
+// ========= Card Overlay (ให้ขนาดเท่าต้นฉบับ) =========
+function TaskCardOverlay({ task, size }) {
+  if (!task) return null
+  const assigneeText = Array.isArray(task.assignees) && task.assignees.length
+    ? task.assignees.map(a => a.name).join(', ')
+    : '-'
+  return (
+    <div
+      className="rounded-xl border bg-white p-3 shadow-lg pointer-events-none"
+      style={{
+        width: size?.w || undefined,
+        height: size?.h || undefined,
+        boxSizing: 'border-box',
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="font-medium text-gray-900 leading-tight">{task.title}</h4>
+        <span className="text-xs text-gray-400 select-none">#{task.id}</span>
+      </div>
+      {Array.isArray(task.labels) && task.labels.length ? (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {task.labels.map(l => (
+            <span key={`${l.id ?? l.name}`} className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
               {l.name}
             </span>
           ))}
@@ -227,14 +224,12 @@ function SortableColumnShell({ colKey, children }) {
 }
 
 function ColumnDropArea({ id, children }) {
-  // ⭐ ทำให้ “คอลัมน์” เป็น droppable สำหรับการ์ด “ตลอดเวลา”
+  // ⭐ Droppable ของคอลัมน์ (เปิดตลอดเวลา) => คอลัมน์ว่างก็รับการ์ดได้
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 space-y-2 overflow-y-auto p-3 rounded-b-2xl ${
-        isOver ? 'outline outline-2 outline-indigo-300/60' : ''
-      }`}
+      className={`flex-1 space-y-2 overflow-y-auto p-3 rounded-b-2xl ${isOver ? 'outline outline-2 outline-indigo-300/60' : ''}`}
     >
       {children}
     </div>
@@ -539,12 +534,16 @@ function EditCardModal({
 
 // ========= Page =========
 export default function BoardPage() {
+  const [boardId, setBoardId] = useState(null)
+  const [projectId, setProjectId] = useState(null)
+
   const [statuses, setStatuses] = useState([])
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const [activeId, setActiveId] = useState(null)
+  const [activeSize, setActiveSize] = useState({ w: 0, h: 0 }) // << ขนาด item ตอนเริ่มลาก
   const [dragMode, setDragMode] = useState('none')
 
   const [openAddColumn, setOpenAddColumn] = useState(false)
@@ -557,30 +556,29 @@ export default function BoardPage() {
 
   const nextTaskIdRef = useRef(1)
 
-  // ===== API endpoints =====
-  const ROLE_URL   = `${API}/projectRole/search`
-  const MEMBER_URL = `${API}/projectMember/search`
-
-  async function fetchTasks(projectId = '5') {
+  async function fetchTasks(projId = '4') {
     try {
       setLoading(true); setError(null)
 
-      const res = await fetch(`${API}/projectTask/searchProjectTaskAssignment`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: projectId }),
-      })
+      const res = await fetch(`${API}/kanban/${projId}`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         throw new Error(`HTTP ${res.status} ${res.statusText} ${text ? `- ${text}` : ''}`)
       }
       const data = await res.json()
-      const nextStatuses = deriveStatusesFromData(data)
-      const nextItems = adaptProjectTasksToBoard(data)
 
+      setBoardId(data?.data?.id ?? null)
+      setProjectId(data?.data?.projectId ?? projId)
+
+      const nextStatuses = deriveStatusesFromApi(data)
+      const nextItems = adaptTasksFromApi(data)
+
+      // จัด normalize ตามตำแหน่งในคอลัมน์ (ตั้งต้นจาก API position)
+      const normalized = normalize(nextItems, nextStatuses)
       setStatuses(nextStatuses)
-      setItems(nextItems)
+      setItems(normalized)
 
-      const maxId = nextItems.length ? Math.max(...nextItems.map(t => t.id)) : 0
+      const maxId = normalized.reduce((m, t) => Math.max(m, safeNum(t.id, 0)), 0)
       nextTaskIdRef.current = maxId + 1
 
       const role = await getrole()
@@ -595,7 +593,7 @@ export default function BoardPage() {
     }
   }
 
-  useEffect(() => { fetchTasks('5') }, [])
+  useEffect(() => { fetchTasks('4') }, [])
 
   // ===== React-Select Options =====
   const roleOptions = useMemo(
@@ -616,20 +614,43 @@ export default function BoardPage() {
   const activeTask = useMemo(() => items.find(t => t.id === activeId) || null, [activeId, items])
 
   // --- collision เฉพาะคอลัมน์ตอนลากคอลัมน์
-  const columnOnlyCollision = (args) => {
-    const allowed = new Set(statuses.map(s => colDragId(s.key)))
-    const filtered = args.droppableContainers.filter(c => allowed.has(c.id))
-    return closestCenter({ ...args, droppableContainers: filtered })
-  }
+  const dndCollision = dragMode === 'col'
+    ? (args) => {
+      const allowed = new Set(statuses.map(s => colDragId(s.key)))
+      const filtered = args.droppableContainers.filter(c => allowed.has(c.id))
+      return closestCenter({ ...args, droppableContainers: filtered })
+    }
+    : closestCorners
+  const dndModifiers = dragMode === 'col' ? [restrictToHorizontalAxis, snapCenterToCursor] : [snapCenterToCursor]
 
   function onDragStart(e) {
     setActiveId(e.active.id)
     setDragMode(parseColId(e.active.id) ? 'col' : 'card')
+
+    // วัดขนาด item ต้นทางให้ overlay เท่ากัน
+    const rect = e?.active?.rect?.current?.initial
+    if (rect) {
+      setActiveSize({ w: Math.round(rect.width), h: Math.round(rect.height) })
+    } else {
+      // fallback เผื่อกรณีไม่ได้ rect
+      try {
+        const node = e?.active?.node?.current
+        if (node) {
+          const r = node.getBoundingClientRect()
+          setActiveSize({ w: Math.round(r.width), h: Math.round(r.height) })
+        } else {
+          setActiveSize({ w: 0, h: 0 })
+        }
+      } catch {
+        setActiveSize({ w: 0, h: 0 })
+      }
+    }
   }
 
   function onDragEnd(e) {
     const { active, over } = e
     setActiveId(null)
+    setActiveSize({ w: 0, h: 0 })
     const mode = parseColId(active.id) ? 'col' : 'card'
     setDragMode('none')
     if (!over) return
@@ -701,7 +722,7 @@ export default function BoardPage() {
   }
 
   function createCard(payload) {
-    const id = nextTaskIdRef.current++
+    const id = String(nextTaskIdRef.current++) // เก็บเป็น string เพื่อไม่ชน format จาก API
     const status = payload.status
     const lastPos = Math.max(-1, ...items.filter(t => t.status === status).map(t => t.position))
     const newTask = {
@@ -709,7 +730,7 @@ export default function BoardPage() {
       labels: (payload.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
       assignees: (payload.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
       assignee: payload.assignee || (payload.assignees?.[0]?.name ?? null),
-      due_date: payload.due_date,
+      due_date: payload.due_date || null,
       note: payload.note || '',
       createdAt: now(), updatedAt: now()
     }
@@ -747,34 +768,32 @@ export default function BoardPage() {
     setEditTaskId(null)
   }
 
-  // ---- DnD dynamic options ----
-  const dndCollision = dragMode === 'col' ? (args) => {
-    const allowed = new Set(statuses.map(s => colDragId(s.key)))
-    const filtered = args.droppableContainers.filter(c => allowed.has(c.id))
-    return closestCenter({ ...args, droppableContainers: filtered })
-  } : closestCorners
-  const dndModifiers = dragMode === 'col' ? [restrictToHorizontalAxis] : undefined
-
   // ---- SAVE (log payload) ----
   function onSaveBoard() {
     const normalized = normalize(items, statuses)
     const payload = {
-      statuses: statuses.map((s, idx) => ({ key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx })),
-      tasks: normalized.map(t => ({
-        id: t.id,
-        title: t.title,
-        status: t.status,
-        position: t.position,
-        labels: (t.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
-        assignees: (t.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
-        due_date: t.due_date || null,
-        note: t.note || '',
-        updatedAt: t.updatedAt || now(),
-      })),
+      id: boardId,
+      projectId: projectId,
+      detail: {
+        statuses: statuses.map((s, idx) => ({
+          key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx
+        })),
+        tasks: normalized.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          position: t.position,
+          labels: (t.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
+          assignees: (t.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
+          due_date: t.due_date || null,
+          note: t.note || '',
+          updatedAt: String(t.updatedAt || now()),
+        })),
+      }
     }
     console.log('KANBAN_SAVE_PAYLOAD', payload)
-    // ตัวอย่าง ถ้าจะยิง API:
-    // fetch(`${API}/kanban/save`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    // ถ้าจะยิงจริง:
+    // fetch(`${API}/kanban/${projectId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
   }
 
   return (
@@ -782,7 +801,7 @@ export default function BoardPage() {
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Kanban (จาก Payload)</h1>
+            <h1 className="text-2xl font-bold">Kanban (จาก API)</h1>
             <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
           </div>
           <div className="flex items-center gap-2">
@@ -844,12 +863,20 @@ export default function BoardPage() {
             </div>
           </SortableContext>
 
-          <DragOverlay>
-            <div className="rounded-xl border bg-white p-3 shadow-lg">
-              {parseColId(activeId)
-                ? (statuses.find(s => s.key === parseColId(activeId))?.label || null)
-                : (activeTask?.title || null)}
-            </div>
+          {/* ใช้ snapCenterToCursor + ทำเงาเท่าของจริงด้วย activeSize */}
+          <DragOverlay modifiers={[snapCenterToCursor]}>
+            {parseColId(activeId)
+              ? (
+                <div
+                  className="rounded-xl border bg-white p-3 shadow-lg pointer-events-none"
+                  style={{ width: 320 }}
+                >
+                  {statuses.find(s => s.key === parseColId(activeId))?.label || null}
+                </div>
+              )
+              : (
+                <TaskCardOverlay task={activeTask} size={activeSize} />
+              )}
           </DragOverlay>
         </DndContext>
       </div>
