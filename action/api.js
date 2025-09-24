@@ -1,7 +1,7 @@
 import { GET, POST, DELETE, PUT } from "@/components/apicomponent/api";
 
 export const getmember = () => {
-    return GET("/projectUser")
+    return GET("/users")
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editmember = (id, data) => {
@@ -26,18 +26,25 @@ export const addrole = (data) => {
 export const deleterole = (id) => {
     return DELETE("/projectRole/"+id)
 }
-export const getproJects = () => {
-    return GET("/projectTaskAssignment/grouped/getTaskAssignments")
+
+export const getproJectsAll = () => {
+    //return GET("/projectTaskAssignment/grouped/getTaskAssignments")
+    return GET("/tm_project")
+    //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
+}
+export const getproJects = (id) => {
+    //return GET("/projectTaskAssignment/grouped/getTaskAssignments")
+    return GET("/tm_project/getbyOwnerId/"+id)
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editproject = (id, data) => {
-    return PUT("/proJects/" + id, data) 
+    return PUT("/tm_project/" + id, data) 
 }
 export const addproject = (data) => {
-    return POST("/proJects", data)
+    return POST("/tm_project", data)
 }
 export const deleteproject = (id) => {
-    return DELETE("/proJects/"+id) 
+    return DELETE("/tm_project/"+id) 
 }
 
 export const edittask = (id, data) => {
@@ -49,3 +56,22 @@ export const addtask = (data) => {
 export const deletetask = (id) => {
     return DELETE("/projectTask/"+id) 
 } 
+
+export async function registerApi({ username, password, email }) {
+  return POST('/api/auth_web/register', { username, password, email });
+}
+
+export async function loginApi({ username, password }) {
+  return POST('/api/auth_web/login', { username, password });
+}
+
+// ดึงโทเค็นจาก response ที่อาจใช้ชื่อแตกต่างกัน (token | accessToken | jwt | data.token)
+export function extractToken(resp) {
+  if (!resp) return null;
+  return (
+    resp.token ||
+    resp.accessToken ||
+    (resp.data && (resp.data.token || resp.data.accessToken)) ||
+    null
+  );
+}

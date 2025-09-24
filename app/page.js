@@ -45,14 +45,16 @@ export default function Home() {
   }, []);
 
   const refresh = async () => {
-    const data = await getproJects();
+    const t = localStorage.getItem('auth_user')
+    const auth_user = JSON.parse(t)
+    const data = await getproJects(auth_user.id);
     if (data?.data && data?.data.length > 0) setProjects(data.data);
     else setProjects([]);
 
     const role = await getrole();
     setroleMap(role?.data || []);
     const member = await getmember();
-    setmemberMap(member?.data  || []);
+    setmemberMap(member?.data || []);
   };
 
   const handleSave = async (project) => {
@@ -286,6 +288,7 @@ export default function Home() {
             <thead className="sticky top-0 z-10 bg-purple-100 text-purple-800">
               <tr>
                 <th className="p-3">ชื่อโปรเจค</th>
+                <th className="p-3">รายละเอียด</th>
                 <th className="p-3 cursor-pointer" onClick={() => handleSort("startDate")}>
                   วันที่เริ่ม {sortConfig.key === "startDate" ? (sortConfig.direction === "asc" ? "▲" : "▼") : ""}
                 </th>
@@ -308,6 +311,7 @@ export default function Home() {
                 return (
                   <tr key={p.id} className="odd:bg-white even:bg-purple-50 hover:bg-purple-100">
                     <td className="p-3 font-semibold">{p.name}</td>
+                     <td className="p-3 font-semibold">{p.description}</td>
                     <td className="p-3 text-center">{formatDate(p.startDate)}</td>
                     <td className="p-3 text-center">{formatDate(p.endDate)}</td>
                     <td className="p-3 text-center">{p.totalDays} วัน</td>
@@ -347,9 +351,17 @@ export default function Home() {
                       </div>
                     </td>
                     <td className="p-3 text-center flex justify-center gap-3">
-                      <button onClick={() => router.push(`/project/${p.id}`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
+                      <button onClick={() => router.push(`/project/${p.id}/board`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
                         {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ดูรายละเอียด</span> */}
-                        ดู
+                        Board
+                      </button>
+                      <button onClick={() => router.push(`/project/${p.id}/dashboard`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
+                        {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ดูรายละเอียด</span> */}
+                        Dashboard
+                      </button>
+                      <button onClick={() => router.push(`/project/${p.id}/gantt`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
+                        {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ดูรายละเอียด</span> */}
+                        Gantt
                       </button>
                       <button
                         onClick={() => {

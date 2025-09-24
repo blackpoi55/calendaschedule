@@ -18,6 +18,7 @@ import { API } from '@/config'
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
 import { getmember, getrole } from '@/action/api'
+import { useParams } from 'next/navigation'
 
 // ========= Presets =========
 const COLUMN_THEMES = [
@@ -565,11 +566,13 @@ export default function BoardPage() {
   const AUTOSAVE_DELAY = 1200           // ms
   const TOAST_COOLDOWN = 5000           // ms (แสดง toast success auto ไม่ถี่เกิน)
 
+    const params = useParams(); // { id: '1' }
+
   // ---- Serialize board (stable) ----
   const serializeBoard = (statusesArg, itemsArg) => {
     const normalized = normalize(itemsArg, statusesArg)
-    const S = statusesArg.map((s, idx) => ({ key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx }))
-    const T = normalized.map(t => ({
+    const statuses = statusesArg.map((s, idx) => ({ key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx }))
+    const tasks = normalized.map(t => ({
       id: String(t.id),
       title: t.title,
       status: t.status,
@@ -580,7 +583,7 @@ export default function BoardPage() {
       note: t.note || '',
       updatedAt: String(t.updatedAt || now()),
     }))
-    return JSON.stringify({ S, T })
+    return JSON.stringify({ statuses, tasks })
   }
 
   // ---- Save core (used by auto & manual) ----
@@ -613,7 +616,7 @@ export default function BoardPage() {
       }
 
       // แนะนำ: ใช้ PUT ถ้ามี boardId, ไม่งั้น POST
-      const url = boardId ? `${API}/kanban/${boardId}` : `${API}/kanban`
+      const url = boardId ? `${API}/kanban` : `${API}/kanban`///${boardId}
       const method = 'POST'
       const res = await fetch(url, {
         method,
@@ -690,7 +693,7 @@ export default function BoardPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
-  async function fetchTasks(projId = '4') {
+  async function fetchTasks(projId = params.id) {
     try {
       setLoading(true); setError(null)
 
@@ -732,7 +735,7 @@ export default function BoardPage() {
     }
   }
 
-  useEffect(() => { fetchTasks('4') }, [])
+  useEffect(() => { fetchTasks(params.id) }, [])
 
   // ===== React-Select Options =====
   const roleOptions = useMemo(
