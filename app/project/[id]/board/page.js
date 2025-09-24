@@ -11,6 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { closestCorners, closestCenter } from '@dnd-kit/core'
 import { restrictToHorizontalAxis, snapCenterToCursor } from '@dnd-kit/modifiers'
+import Swal from 'sweetalert2'
 import { API } from '@/config'
 
 // React Select
@@ -179,11 +180,7 @@ function TaskCardOverlay({ task, size }) {
   return (
     <div
       className="rounded-xl border bg-white p-3 shadow-lg pointer-events-none"
-      style={{
-        width: size?.w || undefined,
-        height: size?.h || undefined,
-        boxSizing: 'border-box',
-      }}
+      style={{ width: size?.w || undefined, height: size?.h || undefined, boxSizing: 'border-box' }}
     >
       <div className="flex items-start justify-between gap-2">
         <h4 className="font-medium text-gray-900 leading-tight">{task.title}</h4>
@@ -556,6 +553,143 @@ export default function BoardPage() {
 
   const nextTaskIdRef = useRef(1)
 
+  // ---- Dirty / Save state ----
+  const [isDirty, setIsDirty] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState(null)
+  const baselineRef = useRef('')        // JSON string ของสถานะล่าสุดที่ "บันทึกแล้ว"
+  const autosaveTimerRef = useRef(null) // debounce timer
+  const isSavingRef = useRef(false)     // กันซ้อน
+  const lastToastAtRef = useRef(0)      // กัน spam toast
+
+  const AUTOSAVE_DELAY = 1200           // ms
+  const TOAST_COOLDOWN = 5000           // ms (แสดง toast success auto ไม่ถี่เกิน)
+
+  // ---- Serialize board (stable) ----
+  const serializeBoard = (statusesArg, itemsArg) => {
+    const normalized = normalize(itemsArg, statusesArg)
+    const S = statusesArg.map((s, idx) => ({ key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx }))
+    const T = normalized.map(t => ({
+      id: String(t.id),
+      title: t.title,
+      status: t.status,
+      position: t.position,
+      labels: (t.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
+      assignees: (t.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
+      due_date: t.due_date || null,
+      note: t.note || '',
+      updatedAt: String(t.updatedAt || now()),
+    }))
+    return JSON.stringify({ S, T })
+  }
+
+  // ---- Save core (used by auto & manual) ----
+  const saveBoardCore = async (kind = 'auto') => {
+    if (isSavingRef.current) return
+    const serialized = serializeBoard(statuses, items)
+    if (serialized === baselineRef.current) {
+      setIsDirty(false)
+      return
+    }
+
+    const payload = {
+      id: boardId,
+      projectId: projectId,
+      detail: JSON.parse(serialized)
+    }
+
+    try {
+      isSavingRef.current = true
+      setIsSaving(true)
+
+      // Manual: โชว์ blocking modal โหลด / Auto: ไม่โชว์ (จะมี indicator ที่ header)
+      if (kind === 'manual') {
+        Swal.fire({
+          title: 'กำลังบันทึก...',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => { Swal.showLoading() }
+        })
+      }
+
+      // แนะนำ: ใช้ PUT ถ้ามี boardId, ไม่งั้น POST
+      const url = boardId ? `${API}/kanban/${boardId}` : `${API}/kanban`
+      const method = 'POST'
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) 
+      const data = await res.json().catch(() => ({}))
+
+      baselineRef.current = serialized
+      setIsDirty(false)
+      setLastSavedAt(Date.now())
+
+      if (kind === 'manual') {
+        Swal.close()
+        await Swal.fire({
+          icon: 'success',
+          title: 'บันทึกสำเร็จ',
+          text: data?.message || 'อัปเดตบอร์ดเรียบร้อย',
+          timer: 1200, showConfirmButton: false
+        })
+      } else {
+        // Auto: แสดง toast success แบบไม่ถี่เกิน
+        const nowTs = Date.now()
+        if (nowTs - lastToastAtRef.current > TOAST_COOLDOWN) {
+          lastToastAtRef.current = nowTs
+          Swal.fire({
+            toast: true, position: 'top-end', icon: 'success',
+            title: 'บันทึกอัตโนมัติแล้ว',
+            showConfirmButton: false, timer: 1200, timerProgressBar: true
+          })
+        }
+      }
+    } catch (e) {
+      console.error(e)
+      if (kind === 'manual') {
+        Swal.close()
+      }
+      Swal.fire({ icon: 'error', title: 'บันทึกล้มเหลว', text: String(e?.message || 'ไม่ทราบสาเหตุ') })
+      // คง isDirty ไว้ให้ลองใหม่
+    } finally {
+      isSavingRef.current = false
+      setIsSaving(false)
+    }
+  }
+
+  // ---- Auto-save: detect dirty + debounce ----
+  useEffect(() => {
+    const s = serializeBoard(statuses, items)
+    const isChanged = s !== baselineRef.current
+    setIsDirty(isChanged)
+
+    // debounce
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    if (isChanged) {
+      autosaveTimerRef.current = setTimeout(() => {
+        saveBoardCore('auto')
+      }, AUTOSAVE_DELAY)
+    }
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statuses, items])
+
+  // Warn before unload if dirty
+  useEffect(() => {
+    const handler = (e) => {
+      if (isDirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
   async function fetchTasks(projId = '4') {
     try {
       setLoading(true); setError(null)
@@ -572,9 +706,8 @@ export default function BoardPage() {
 
       const nextStatuses = deriveStatusesFromApi(data)
       const nextItems = adaptTasksFromApi(data)
-
-      // จัด normalize ตามตำแหน่งในคอลัมน์ (ตั้งต้นจาก API position)
       const normalized = normalize(nextItems, nextStatuses)
+
       setStatuses(nextStatuses)
       setItems(normalized)
 
@@ -585,9 +718,15 @@ export default function BoardPage() {
       setroleMap(role?.data || [])
       const member = await getmember()
       setmemberMap(member?.data || [])
+
+      // ตั้ง baseline หลังโหลดสำเร็จ
+      baselineRef.current = serializeBoard(nextStatuses, normalized)
+      setIsDirty(false)
+      setLastSavedAt(null)
     } catch (e) {
       console.error(e)
       setError(e?.message || 'Load failed')
+      Swal.fire({ icon: 'error', title: 'โหลดข้อมูลล้มเหลว', text: String(e?.message || 'ไม่ทราบสาเหตุ') })
     } finally {
       setLoading(false)
     }
@@ -632,7 +771,6 @@ export default function BoardPage() {
     if (rect) {
       setActiveSize({ w: Math.round(rect.width), h: Math.round(rect.height) })
     } else {
-      // fallback เผื่อกรณีไม่ได้ rect
       try {
         const node = e?.active?.node?.current
         if (node) {
@@ -768,52 +906,74 @@ export default function BoardPage() {
     setEditTaskId(null)
   }
 
-  // ---- SAVE (log payload) ----
-  const onSaveBoard = async () => {
-    const normalized = normalize(items, statuses)
-    const payload = {
-      id: boardId,
-      projectId: projectId,
-      detail: {
-        statuses: statuses.map((s, idx) => ({
-          key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx
-        })),
-        tasks: normalized.map(t => ({
-          id: t.id,
-          title: t.title,
-          status: t.status,
-          position: t.position,
-          labels: (t.labels || []).map(x => ({ id: x.id ?? null, name: x.name })),
-          assignees: (t.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
-          due_date: t.due_date || null,
-          note: t.note || '',
-          updatedAt: String(t.updatedAt || now()),
-        })),
-      }
-    }
-    console.log('KANBAN_SAVE_PAYLOAD', payload)
-    // ถ้าจะยิงจริง:
-    let res = fetch(`${API}/kanban`, { method: 'Post', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    if (!res.ok) {
-      fetchTasks(4)
-    }
-  }
+  // ---- Manual save (fallback) ----
+  const onManualSave = () => saveBoardCore('manual')
 
   return (
     <div className="mx-auto min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Global loading overlay */}
+      {loading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/60 backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-xl border bg-white px-4 py-3 shadow">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600"></span>
+            <span className="text-sm text-gray-700">กำลังโหลดข้อมูล...</span>
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">Kanban (จาก API)</h1>
-            <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-2xl font-bold">Kanban (จาก API)</h1>
+              <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
+            </div>
+
+            {/* Save status indicator */}
+            <div className="ml-2 rounded-full border px-2.5 py-1 text-xs">
+              {isSaving ? (
+                <span className="inline-flex items-center gap-1 text-indigo-700">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-700"></span>
+                  กำลังบันทึก...
+                </span>
+              ) : isDirty ? (
+                <span className="inline-flex items-center gap-1 text-amber-700">
+                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  มีการแก้ไข (ยังไม่บันทึก)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-emerald-700">
+                  <span>✓</span> บันทึกแล้ว
+                  {lastSavedAt ? <span className="ml-1 text-emerald-600/70">({new Date(lastSavedAt).toLocaleTimeString('th-TH')})</span> : null}
+                </span>
+              )}
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <button onClick={() => setOpenAddColumn(true)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-white hover:bg-gray-50 shadow-sm">
               <span className="text-lg">➕</span> เพิ่มคอลัมน์
             </button>
-            <button onClick={() => onSaveBoard()} className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">
-              💾 บันทึก
-            </button>
+
+            {/* ปุ่มบันทึก: โชว์เฉพาะตอน dirty */}
+            {isDirty && (
+              <button
+                onClick={onManualSave}
+                disabled={isSaving}
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm shadow-sm ${isSaving ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+              >
+                {isSaving ? (
+                  <>
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/50 border-t-white"></span>
+                    กำลังบันทึก...
+                  </>
+                ) : (
+                  <>
+                    💾 บันทึก
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </header>
