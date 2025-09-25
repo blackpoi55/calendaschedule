@@ -958,7 +958,8 @@ export default function BoardPage() {
     <div className="mx-auto min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Global loading overlay */}
       {loading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/60 backdrop-blur-sm">
+        // <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="flex items-center gap-3 rounded-xl border bg-white px-4 py-3 shadow">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600"></span>
             <span className="text-sm text-gray-700">กำลังโหลดข้อมูล...</span>
