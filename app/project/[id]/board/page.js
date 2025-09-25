@@ -957,7 +957,7 @@ export default function BoardPage() {
   return (
     <div className="mx-auto min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Global loading overlay */}
-      {loading && (
+      {/* {loading && (
         // <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/60 backdrop-blur-sm">
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="flex items-center gap-3 rounded-xl border bg-white px-4 py-3 shadow">
@@ -965,7 +965,7 @@ export default function BoardPage() {
             <span className="text-sm text-gray-700">กำลังโหลดข้อมูล...</span>
           </div>
         </div>
-      )}
+      )} */}
 
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -993,7 +993,16 @@ export default function BoardPage() {
                   {lastSavedAt ? <span className="ml-1 text-emerald-600/70">({new Date(lastSavedAt).toLocaleTimeString('th-TH')})</span> : null}
                 </span>
               )}
+
             </div>
+            {loading && (
+              <div className="ml-2 rounded-full border px-2.5 py-1 text-xs">
+                <span className="inline-flex items-center gap-1 text-indigo-700 ml-8">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-700"></span>
+                  <span className="text-sm text-gray-700">กำลังโหลดข้อมูล...</span>
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
