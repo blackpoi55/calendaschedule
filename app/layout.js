@@ -1,22 +1,26 @@
-import { Sarabun } from "next/font/google";
-import "./globals.css"; 
-import "@wamra/gantt-task-react/dist/style.css";
+import { Sarabun } from 'next/font/google'
+import './globals.css'
+import '@wamra/gantt-task-react/dist/style.css'
+import ClientShell from '@/components/ClientShell'
+
 const sarabun = Sarabun({
-  weight: ['400', '700'], // You can specify the weights you want to include
-  subsets: ['latin'], // You can specify the subsets you want to include
-});
+  weight: ['400', '700'],
+  subsets: ['latin'],
+})
 
 export const metadata = {
-  title: "H-Series Team",
-  description: "ระบบบริหารจัดการทีม",
-};
+  title: 'H-Series Team',
+  description: 'ระบบบริหารจัดการทีม',
+}
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={sarabun.className}>
-        {children} 
+        <ClientShell>
+          {children}
+        </ClientShell>
       </body>
     </html>
-  );
+  )
 }

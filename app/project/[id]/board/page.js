@@ -20,6 +20,10 @@ import CreatableSelect from 'react-select/creatable'
 import { getmember, getrole } from '@/action/api'
 import { useParams } from 'next/navigation'
 
+// ===================== Refresh config =====================
+const ENABLE_POLLING = true            // เปิด/ปิด pull ข้อมูลเป็นระยะ
+const REFRESH_INTERVAL_MS = 30000      // ทุก 30s
+
 // ========= Presets =========
 const COLUMN_THEMES = [
   { key: 'slate', name: 'Slate', bg: 'bg-slate-50', border: 'border-slate-200', dot: 'bg-slate-400' },
@@ -79,7 +83,8 @@ function deriveStatusesFromApi(resp) {
   if (arr.length) {
     // ใช้ order จาก API
     return [...arr].sort((a, b) => safeNum(a.order) - safeNum(b.order)).map(s => ({
-      key: s.key, label: s.label ?? STATUS_META[s.key]?.label ?? s.key,
+      key: s.key,
+      label: s.label ?? STATUS_META[s.key]?.label ?? s.key,
       theme: s.theme ?? STATUS_META[s.key]?.theme ?? 'gray',
       icon: s.icon ?? STATUS_META[s.key]?.icon ?? '📋',
     }))
@@ -92,22 +97,31 @@ function deriveStatusesFromApi(resp) {
   return base.map(k => ({ key: k, label: STATUS_META[k].label, theme: STATUS_META[k].theme, icon: STATUS_META[k].icon }))
 }
 
-function adaptTasksFromApi(resp) {
+// ✅ ปรับ: ยอมรับ status ตามที่ API ส่งมา (ถ้าไม่รู้จัก map ไปคอลัมน์แรก)
+function adaptTasksFromApi(resp, allowedStatusKeys = []) {
   const rows = Array.isArray(resp?.data?.detail?.tasks) ? resp.data.detail.tasks : []
-  // ใช้ position จาก API ตรง ๆ
-  return rows.map(r => ({
-    id: r.id, // string ก็ได้
-    title: r.title ?? '',
-    status: r.status && STATUS_ORDER.includes(r.status) ? r.status : 'TODO',
-    position: safeNum(r.position, 0),
-    labels: (r.labels || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
-    assignees: (r.assignees || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
-    assignee: (r.assignees && r.assignees[0]?.name) || null,
-    due_date: r.due_date || null,
-    note: r.note || '',
-    createdAt: safeNum(r.createdAt ?? r.updatedAt ?? Date.now(), Date.now()),
-    updatedAt: safeNum(r.updatedAt ?? Date.now(), Date.now()),
-  }))
+  const allow = new Set(allowedStatusKeys)
+
+  return rows.map(r => {
+    const rawStatus = r.status || 'TODO'
+    const status = allow.size === 0
+      ? rawStatus
+      : (allow.has(rawStatus) ? rawStatus : (allowedStatusKeys[0] || 'TODO'))
+
+    return {
+      id: r.id, // เป็น string/number ก็ได้
+      title: r.title ?? '',
+      status,
+      position: safeNum(r.position, 0),
+      labels: (r.labels || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
+      assignees: (r.assignees || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
+      assignee: (r.assignees && r.assignees[0]?.name) || null,
+      due_date: r.due_date || null,
+      note: r.note || '',
+      createdAt: safeNum(r.createdAt ?? r.updatedAt ?? Date.now(), Date.now()),
+      updatedAt: safeNum(r.updatedAt ?? Date.now(), Date.now()),
+    }
+  })
 }
 
 // ========= React-Select Styles =========
@@ -172,7 +186,7 @@ function TaskCard({ task, onClick, dragDisabled }) {
   )
 }
 
-// ========= Card Overlay (ให้ขนาดเท่าต้นฉบับ) =========
+// ========= Card Overlay =========
 function TaskCardOverlay({ task, size }) {
   if (!task) return null
   const assigneeText = Array.isArray(task.assignees) && task.assignees.length
@@ -222,7 +236,7 @@ function SortableColumnShell({ colKey, children }) {
 }
 
 function ColumnDropArea({ id, children }) {
-  // ⭐ Droppable ของคอลัมน์ (เปิดตลอดเวลา) => คอลัมน์ว่างก็รับการ์ดได้
+  // Droppable ของคอลัมน์ (เปิดตลอดเวลา) => คอลัมน์ว่างก็รับการ์ดได้
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <div
@@ -541,7 +555,7 @@ export default function BoardPage() {
   const [error, setError] = useState(null)
 
   const [activeId, setActiveId] = useState(null)
-  const [activeSize, setActiveSize] = useState({ w: 0, h: 0 }) // << ขนาด item ตอนเริ่มลาก
+  const [activeSize, setActiveSize] = useState({ w: 0, h: 0 }) // ขนาด item ตอนเริ่มลาก
   const [dragMode, setDragMode] = useState('none')
 
   const [openAddColumn, setOpenAddColumn] = useState(false)
@@ -564,9 +578,9 @@ export default function BoardPage() {
   const lastToastAtRef = useRef(0)      // กัน spam toast
 
   const AUTOSAVE_DELAY = 1200           // ms
-  const TOAST_COOLDOWN = 5000           // ms (แสดง toast success auto ไม่ถี่เกิน)
+  const TOAST_COOLDOWN = 5000           // ms
 
-    const params = useParams(); // { id: '1' }
+  const params = useParams() // { id: '...' }
 
   // ---- Serialize board (stable) ----
   const serializeBoard = (statusesArg, itemsArg) => {
@@ -605,7 +619,6 @@ export default function BoardPage() {
       isSavingRef.current = true
       setIsSaving(true)
 
-      // Manual: โชว์ blocking modal โหลด / Auto: ไม่โชว์ (จะมี indicator ที่ header)
       if (kind === 'manual') {
         Swal.fire({
           title: 'กำลังบันทึก...',
@@ -615,19 +628,26 @@ export default function BoardPage() {
         })
       }
 
-      // แนะนำ: ใช้ PUT ถ้ามี boardId, ไม่งั้น POST
-      const url = boardId ? `${API}/kanban` : `${API}/kanban`///${boardId}
+      // NOTE: ปรับตาม API จริง ถ้าต้องการ PUT เมื่อมี boardId ให้เปลี่ยนด้านล่าง
+      const url = `${API}/kanban`
       const method = 'POST'
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }) 
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
       const data = await res.json().catch(() => ({}))
 
       baselineRef.current = serialized
       setIsDirty(false)
       setLastSavedAt(Date.now())
+
+      // ✅ refetch ทันทีหลังบันทึก เพื่อ sync กับเครื่องอื่น/แหล่งจริง
+      await fetchTasks(projectId)
 
       if (kind === 'manual') {
         Swal.close()
@@ -638,7 +658,6 @@ export default function BoardPage() {
           timer: 1200, showConfirmButton: false
         })
       } else {
-        // Auto: แสดง toast success แบบไม่ถี่เกิน
         const nowTs = Date.now()
         if (nowTs - lastToastAtRef.current > TOAST_COOLDOWN) {
           lastToastAtRef.current = nowTs
@@ -655,7 +674,6 @@ export default function BoardPage() {
         Swal.close()
       }
       Swal.fire({ icon: 'error', title: 'บันทึกล้มเหลว', text: String(e?.message || 'ไม่ทราบสาเหตุ') })
-      // คง isDirty ไว้ให้ลองใหม่
     } finally {
       isSavingRef.current = false
       setIsSaving(false)
@@ -668,7 +686,6 @@ export default function BoardPage() {
     const isChanged = s !== baselineRef.current
     setIsDirty(isChanged)
 
-    // debounce
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
     if (isChanged) {
       autosaveTimerRef.current = setTimeout(() => {
@@ -693,6 +710,7 @@ export default function BoardPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
+  // ✅ โหลดข้อมูล: derive statuses ก่อน แล้วค่อย adapt tasks ด้วย allowed keys
   async function fetchTasks(projId = params.id) {
     try {
       setLoading(true); setError(null)
@@ -708,8 +726,9 @@ export default function BoardPage() {
       setProjectId(data?.data?.projectId ?? projId)
 
       const nextStatuses = deriveStatusesFromApi(data)
-      const nextItems = adaptTasksFromApi(data)
-      const normalized = normalize(nextItems, nextStatuses)
+      const allowedKeys = nextStatuses.map(s => s.key)
+      const nextItemsRaw = adaptTasksFromApi(data, allowedKeys)
+      const normalized = normalize(nextItemsRaw, nextStatuses)
 
       setStatuses(nextStatuses)
       setItems(normalized)
@@ -722,7 +741,7 @@ export default function BoardPage() {
       const member = await getmember()
       setmemberMap(member?.data || [])
 
-      // ตั้ง baseline หลังโหลดสำเร็จ
+      // baseline หลังโหลด
       baselineRef.current = serializeBoard(nextStatuses, normalized)
       setIsDirty(false)
       setLastSavedAt(null)
@@ -735,7 +754,30 @@ export default function BoardPage() {
     }
   }
 
-  useEffect(() => { fetchTasks(params.id) }, [])
+  // โหลดครั้งแรก
+  useEffect(() => { fetchTasks(params.id) }, []) // eslint-disable-line
+
+  // ✅ refetch เมื่อกลับมาโฟกัสแท็บ (กันเพี้ยนถ้าหลายเครื่องแก้)
+  useEffect(() => {
+    const onFocus = () => fetchTasks(projectId || params.id)
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') onFocus()
+    })
+    window.addEventListener('focus', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [projectId]) // eslint-disable-line
+
+  // ✅ polling เป็นระยะ (เปิด/ปิดได้จาก config ด้านบน)
+  useEffect(() => {
+    if (!ENABLE_POLLING) return
+    const t = setInterval(() => {
+      // ไม่รบกวนตอนกำลังเซฟ/กำลังแก้ไขหนักๆ
+      if (!isSavingRef.current) fetchTasks(projectId || params.id)
+    }, REFRESH_INTERVAL_MS)
+    return () => clearInterval(t)
+  }, [projectId]) // eslint-disable-line
 
   // ===== React-Select Options =====
   const roleOptions = useMemo(
@@ -971,9 +1013,7 @@ export default function BoardPage() {
                     กำลังบันทึก...
                   </>
                 ) : (
-                  <>
-                    💾 บันทึก
-                  </>
+                  <>💾 บันทึก</>
                 )}
               </button>
             )}
@@ -1011,7 +1051,7 @@ export default function BoardPage() {
                           onAddTask={() => setOpenAddCardFor(key)}
                           onEditColumn={openEditColumn}
                         >
-                          {/* ⭐ Droppable ของคอลัมน์ (รับการ์ดเสมอ—even ว่าง) */}
+                          {/* Droppable ของคอลัมน์ */}
                           <ColumnDropArea id={key}>
                             {tasks.length === 0 ? (
                               <div className="min-h-[80px] rounded-md border border-dashed border-slate-300" />
