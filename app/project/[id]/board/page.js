@@ -785,7 +785,7 @@ export default function BoardPage() {
     [roleMap]
   )
   const memberOptions = useMemo(
-    () => (memberMap || []).map(m => ({ value: { id: m.id ?? null, name: m.name }, label: m.name })),
+    () => (memberMap || []).map(m => ({ value: { id: m.user.id ?? null, name: m.user.name }, label: m.user.name })),
     [memberMap]
   )
 
