@@ -476,35 +476,35 @@ function AddMemberModal({ data = [], onClose, refresh }) {
   }, [search]);
 
   const pickUser = (u) => {
-  // เคลียร์ debounce และ abort request ค้าง
-  if (debounceRef.current) window.clearTimeout(debounceRef.current);
-  if (abortRef.current) abortRef.current.abort();
+    // เคลียร์ debounce และ abort request ค้าง
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (abortRef.current) abortRef.current.abort();
 
-  const candidateName = u.name || u.fullName || u.username || "";
-  const candidateEmail = u.email || "";
-  const candidateSvg =
-    typeof u.image === "string" && u.image.trim().startsWith("<svg")
-      ? u.image
-      : typeof u.avatar === "string" && u.avatar.trim().startsWith("<svg")
-      ? u.avatar
-      : "";
+    const candidateName = u.name || u.fullName || u.username || "";
+    const candidateEmail = u.email || "";
+    const candidateSvg =
+      typeof u.image === "string" && u.image.trim().startsWith("<svg")
+        ? u.image
+        : typeof u.avatar === "string" && u.avatar.trim().startsWith("<svg")
+          ? u.avatar
+          : "";
 
-  setForm((f) => ({
-    ...f,
-    id: u.id ?? null,
-    name: candidateName,
-    email: candidateEmail,
-    image: validateSvg(candidateSvg) ? candidateSvg : "",
-  }));
+    setForm((f) => ({
+      ...f,
+      id: u.id ?? null,
+      name: candidateName,
+      email: candidateEmail,
+      image: validateSvg(candidateSvg) ? candidateSvg : "",
+    }));
 
-  // ปิด dropdown และหยุด trigger search อีกครั้ง
-  setResults([]);
-  setActiveIdx(-1);
-  setSearch("");          // <— สำคัญ: อย่าตั้งเป็นชื่อ/อีเมล ไม่งั้นไปกระตุ้น useEffect อีกรอบ
+    // ปิด dropdown และหยุด trigger search อีกครั้ง
+    setResults([]);
+    setActiveIdx(-1);
+    setSearch("");          // <— สำคัญ: อย่าตั้งเป็นชื่อ/อีเมล ไม่งั้นไปกระตุ้น useEffect อีกรอบ
 
-  // โฟกัสไปช่องชื่อ ให้ผู้ใช้แก้ต่อได้ทันที
-  nameRef.current?.focus();
-};
+    // โฟกัสไปช่องชื่อ ให้ผู้ใช้แก้ต่อได้ทันที
+    nameRef.current?.focus();
+  };
 
 
   const onSearchKeyDown = (e) => {

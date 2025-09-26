@@ -65,18 +65,35 @@ export default function Home() {
       endDate: project.endDate,
       totalDays: project.totalDays,
     };
-    if (project.id) res = await editproject(project.id, val);
-    else res = await addproject(val);
+
+    res = project.id ? await editproject(project.id, val) : await addproject(val);
 
     if (!res?.error) {
-      Swal.fire("สำเร็จ", editProject ? "แก้ไขโปรเจคเรียบร้อย!" : "เพิ่มโปรเจคใหม่เรียบร้อย!", "success");
+      Swal.fire({
+        icon: "success",
+        title: "สำเร็จ",
+        text: project.id ? "แก้ไขโปรเจคเรียบร้อย!" : "เพิ่มโปรเจคใหม่เรียบร้อย!",
+      });
       setOpenModal(false);
       setEditProject(null);
       refresh();
     } else {
-      Swal.fire("ผิดพลาด", res?.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล", "error");
+      const errText =
+        typeof res.error === "string"
+          ? res.error
+          : res.error?.message ??
+          res.error?.data?.message ??
+          res.error?.toString?.() ??
+          "เกิดข้อผิดพลาดในการบันทึกข้อมูล";
+
+      Swal.fire({
+        icon: "error",
+        title: "ผิดพลาด",
+        text: errText, // use text, not html, to avoid accidental object injection
+      });
     }
   };
+
 
   const handleSort = (key) => {
     setSortConfig((prev) => {
@@ -311,7 +328,7 @@ export default function Home() {
                 return (
                   <tr key={p.id} className="odd:bg-white even:bg-purple-50 hover:bg-purple-100">
                     <td className="p-3 font-semibold">{p.name}</td>
-                     <td className="p-3 font-semibold">{p.description}</td>
+                    <td className="p-3 font-semibold">{p.description}</td>
                     <td className="p-3 text-center">{formatDate(p.startDate)}</td>
                     <td className="p-3 text-center">{formatDate(p.endDate)}</td>
                     <td className="p-3 text-center">{p.totalDays} วัน</td>
