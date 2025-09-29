@@ -362,7 +362,7 @@
 // export default AddMemberModal;
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { addmember, deletemember, editmember } from "@/action/api";
+import { addmember, addmemberteam, deletemember, deletememberteam, editmember } from "@/action/api";
 import Swal from "sweetalert2";
 
 function AddMemberModal({ data = [], onClose, refresh }) {
@@ -386,9 +386,12 @@ function AddMemberModal({ data = [], onClose, refresh }) {
   const [activeIdx, setActiveIdx] = useState(-1);
   const abortRef = useRef(null);
   const debounceRef = useRef(null);
+  const [userData, setuserData] = useState({});
 
   useEffect(() => {
     nameRef.current?.focus();
+    let user = localStorage.getItem("auth_user");
+    if (user) setuserData(JSON.parse(user));
   }, []);
 
   useEffect(() => {
@@ -543,13 +546,14 @@ function AddMemberModal({ data = [], onClose, refresh }) {
         // textcolor: form.textcolor || "#ffffff",
         // description: form.description || "",
         // showindropdown: !!form.showindropdown,
-        projectId: 1,
+        teamId: 1,
+        // teamId: userData.id,
         userId: form.id
         , roleInProject: "member"
       };
 
       //if (form.id == null) {
-      await addmember(payload);
+      await addmemberteam(payload);
       Swal.fire({
         title: "สำเร็จ",
         text: "เพิ่ม Member ใหม่แล้ว",
@@ -591,7 +595,13 @@ function AddMemberModal({ data = [], onClose, refresh }) {
 
     setLoading(true);
     try {
-      const res = await deletemember(member.id);
+      // const res = await deletemember(member.id); 
+      let payload = {
+        teamId: 1,
+        userId: member.id
+      }
+      const res = await deletememberteam(payload);
+
       if (!res?.error) {
         Swal.fire({
           title: "สำเร็จ",
@@ -628,7 +638,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-indigo-100 to-purple-100">
-          <h3 className="text-lg font-semibold">จัดการสมาชิก (Member)</h3>
+          <h3 className="text-lg font-semibold" onClick={() => console.log(userData)}>จัดการสมาชิก (Member)</h3>
           <button
             onClick={onClose}
             className="px-3 py-1 rounded-lg text-white bg-red-500 hover:bg-red-400"

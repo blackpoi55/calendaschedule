@@ -4,14 +4,24 @@ export const getmember = () => {
     return GET("/users/byprojectId/1")
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
+export const getmemberbyteam = () => {
+    return GET("/team/1")
+    //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
+}
 export const editmember = (id, data) => {
     return PUT("/projectUser/" + id, data)
 }
 export const addmember = (data) => {
     return POST("/users/addMember", data)
 }
+export const addmemberteam = (data) => {
+    return POST("/team/addMember", data)
+}
 export const deletemember = (id) => {
     return DELETE("/projectUser/"+id)
+}
+export const deletememberteam = (data) => {
+    return POST("/team/removeMember",data)
 }
 export const getrole = () => {
     return GET("/projectRole")

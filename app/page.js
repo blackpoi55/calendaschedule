@@ -16,6 +16,7 @@ import {
   editrole,
   deleterole,
   getmember,
+  getmemberbyteam,
 } from "@/action/api";
 import AddRoleModal from "@/components/AddRoleModal";
 import AddMemberModal from "@/components/AddMemberModal";
@@ -53,8 +54,12 @@ export default function Home() {
 
     const role = await getrole();
     setroleMap(role?.data || []);
-    const member = await getmember();
-    setmemberMap(member?.data || []);
+    // const member = await getmember();
+    //  console.log(members)
+    // setmemberMap(member?.data || []);
+    const members = await getmemberbyteam();
+    console.log(members?.data?.members)
+    setmemberMap(members?.data?.members || []);
   };
 
   const handleSave = async (project) => {
