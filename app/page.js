@@ -17,6 +17,7 @@ import {
   deleterole,
   getmember,
   getmemberbyteam,
+  createTeam,
 } from "@/action/api";
 import AddRoleModal from "@/components/AddRoleModal";
 import AddMemberModal from "@/components/AddMemberModal";
@@ -57,8 +58,13 @@ export default function Home() {
     // const member = await getmember();
     //  console.log(members)
     // setmemberMap(member?.data || []);
-    const members = await getmemberbyteam();
+    let user = localStorage.getItem("auth_user");
+    user = JSON.parse(user);
+    const members = await getmemberbyteam(user.id);
     console.log(members?.data?.members)
+    if (!members?.data?.members) {
+      let res = await createTeam({ name: user.email + "-team", ownerId: user.id })
+    }
     setmemberMap(members?.data?.members || []);
   };
 

@@ -389,6 +389,11 @@ function AddMemberModal({ data = [], onClose, refresh }) {
   const [userData, setuserData] = useState({});
 
   useEffect(() => {
+    console.log(data.length, data)
+  }, [])
+
+
+  useEffect(() => {
     nameRef.current?.focus();
     let user = localStorage.getItem("auth_user");
     if (user) setuserData(JSON.parse(user));
@@ -546,31 +551,31 @@ function AddMemberModal({ data = [], onClose, refresh }) {
         // textcolor: form.textcolor || "#ffffff",
         // description: form.description || "",
         // showindropdown: !!form.showindropdown,
-        teamId: 1,
-        // teamId: userData.id,
+        // teamId: 1,
+        teamId: userData.id,
         userId: form.id
         , roleInProject: "member"
       };
 
-      //if (form.id == null) {
-      await addmemberteam(payload);
-      Swal.fire({
-        title: "สำเร็จ",
-        text: "เพิ่ม Member ใหม่แล้ว",
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-      // } else {
-      //   await editmember(form.id, payload);
-      //   Swal.fire({
-      //     title: "สำเร็จ",
-      //     text: "แก้ไข Member แล้ว",
-      //     icon: "success",
-      //     timer: 1500,
-      //     showConfirmButton: false,
-      //   });
-      //}
+      if (form.id == null) {
+        await addmemberteam(payload);
+        Swal.fire({
+          title: "สำเร็จ",
+          text: "เพิ่ม Member ใหม่แล้ว",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      } else {
+        await editmember(form.id, payload);
+        Swal.fire({
+          title: "สำเร็จ",
+          text: "แก้ไข Member แล้ว",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      }
       refresh?.();
       resetForm();
     } catch (error) {
@@ -597,7 +602,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
     try {
       // const res = await deletemember(member.id); 
       let payload = {
-        teamId: 1,
+        teamId: userData.id,
         userId: member.id
       }
       const res = await deletememberteam(payload);
@@ -795,7 +800,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
                 disabled={loading}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-lg"
               >
-                {loading ? "กำลังบันทึก..." : form.id == null ? "เพิ่ม" : "เพิ่ม"}
+                {loading ? "กำลังบันทึก..." : form.id == null ? "เพิ่ม" : "แก้ไข"}
               </button>
               {/* {form.id != null && (
                 <button

@@ -4,8 +4,8 @@ export const getmember = () => {
     return GET("/users/byprojectId/1")
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
-export const getmemberbyteam = () => {
-    return GET("/team/1")
+export const getmemberbyteam = (data) => {
+    return GET("/team/"+data)
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editmember = (id, data) => {
