@@ -557,7 +557,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
         , roleInProject: "member"
       };
 
-      if (form.id == null) {
+     // if (form.id == null) {
         await addmemberteam(payload);
         Swal.fire({
           title: "สำเร็จ",
@@ -566,16 +566,16 @@ function AddMemberModal({ data = [], onClose, refresh }) {
           timer: 1500,
           showConfirmButton: false,
         });
-      } else {
-        await editmember(form.id, payload);
-        Swal.fire({
-          title: "สำเร็จ",
-          text: "แก้ไข Member แล้ว",
-          icon: "success",
-          timer: 1500,
-          showConfirmButton: false,
-        });
-      }
+      // } else {
+      //   await editmember(form.id, payload);
+      //   Swal.fire({
+      //     title: "สำเร็จ",
+      //     text: "แก้ไข Member แล้ว",
+      //     icon: "success",
+      //     timer: 1500,
+      //     showConfirmButton: false,
+      //   });
+      // }
       refresh?.();
       resetForm();
     } catch (error) {
@@ -800,7 +800,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
                 disabled={loading}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-lg"
               >
-                {loading ? "กำลังบันทึก..." : form.id == null ? "เพิ่ม" : "แก้ไข"}
+                {loading ? "กำลังบันทึก..." : form.id == null ? "เพิ่ม" : "เพิ่ม"}
               </button>
               {/* {form.id != null && (
                 <button

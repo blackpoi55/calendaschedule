@@ -75,6 +75,7 @@ export default function Home() {
       startDate: project.startDate,
       endDate: project.endDate,
       totalDays: project.totalDays,
+      members: project.members,
     };
 
     res = project.id ? await editproject(project.id, val) : await addproject(val);
@@ -136,6 +137,25 @@ export default function Home() {
     });
   };
 
+  // อักษรย่อจากชื่อ เช่น "Est 3" -> "E3"
+  const initials = (name = "") =>
+    name
+      .trim()
+      .split(/\s+/)
+      .map(w => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+
+  // ดึงสมาชิกจาก ProjectMembers ของแต่ละโปรเจค
+  const getProjectMembers = (project) =>
+    (project.ProjectMembers || []).map(pm => ({
+      id: pm.user?.id ?? pm.userId,
+      name: pm.user?.name ?? "Unknown",
+      email: pm.user?.email ?? "",
+      role: pm.roleInProject ?? "",
+    }));
   const getCurrentStatus = (project) => {
     const today = dayjs();
     const start = dayjs(project.startDate);
@@ -202,7 +222,12 @@ export default function Home() {
         (statusFilter === "กำลังดำเนินการ"
           ? projectStatus.includes("กำลังดำเนินการ") || projectStatus === "รอขั้นตอนถัดไป"
           : projectStatus === statusFilter);
-      const matchesMember = !memberFilter || (p.details || []).some((task) => (task.member || []).includes(memberFilter));
+      // const matchesMember = !memberFilter || (p.details || []).some((task) => (task.member || []).includes(memberFilter));
+      const matchesMember =
+        !memberFilter ||
+        (p.ProjectMembers || []).some(
+          (pm) => (pm.user?.name || "").toLowerCase() === memberFilter.toLowerCase()
+        );
       const matchesOverdue = !overdueFilter || isOverdue(p);
       return matchesSearch && matchesStatus && matchesMember && matchesOverdue;
     });
@@ -364,20 +389,33 @@ export default function Home() {
                     </td>
 
                     <td className="p-3">
-                      <div className="flex flex-wrap justify-center gap-3">
-                        {members.map((item, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => setMemberFilter(item.label)}
-                            style={{ backgroundColor: item.color || "black", color: item.textcolor || "white" }}
-                            className="flex flex-col items-center justify-center text-xs p-2 rounded-full shadow-md cursor-pointer hover:scale-105 transition w-12 h-12 text-center"
-                          >
-                            {item.image && <span className="w-3 h-3 mb-1" dangerouslySetInnerHTML={{ __html: item.image }} />}
-                            <span className="truncate">{item.label}</span>
-                          </div>
-                        ))}
+                      <div className="flex flex-wrap gap-2">
+                        {getProjectMembers(p).length === 0 ? (
+                          <span className="text-sm text-gray-500">—</span>
+                        ) : (
+                          getProjectMembers(p).map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => setMemberFilter(m.name)}
+                              className="group flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition shadow-sm"
+                              title={`${m.name}${m.role ? ` • ${m.role}` : ""}`}
+                            >
+                              <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-purple-500 group-hover:scale-105 transition">
+                                {initials(m.name)}
+                              </span>
+                              <span className="text-xs font-semibold truncate max-w-[140px]">{m.name}</span>
+                              {m.role && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-200 text-purple-800">
+                                  {m.role}
+                                </span>
+                              )}
+                            </button>
+                          ))
+                        )}
                       </div>
                     </td>
+
                     <td className="p-3 text-center flex justify-center gap-3">
                       <button onClick={() => router.push(`/project/${p.id}/board`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
                         {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ดูรายละเอียด</span> */}
