@@ -10,6 +10,9 @@ export const editmember = (id, data) => {
 export const addmember = (data) => {
     return POST("/users/addMember", data)
 }
+export const createTeam = (data) => {
+    return POST("/team", data)
+}
 export const deletemember = (id) => {
     return DELETE("/projectUser/"+id)
 }
