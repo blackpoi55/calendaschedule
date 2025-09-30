@@ -77,7 +77,7 @@
 
 //         onSave(project); 
 //     };
- 
+
 
 //     return (
 //         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -95,7 +95,7 @@
 //                         onChange={(e) => handleChange("name", e.target.value)}
 //                     />
 
-                
+
 //                     {/* ✅ จำนวนวัน */}
 //                     <input
 //                         type="number"
@@ -143,6 +143,7 @@
 import { useState, useEffect, useMemo } from "react";
 import dayjs from "dayjs";
 import Swal from "sweetalert2";
+import { getmemberbyteam } from "@/action/api";
 
 export default function AddProjectModal({ onClose, onSave, editData }) {
   const today = dayjs();
@@ -166,30 +167,16 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
     const fetchMembers = async () => {
       try {
         setLoadingMembers(true);
-        const token =
-          localStorage.getItem("token") ||
-          localStorage.getItem("accessToken") ||
-          "";
-
-        const res = await fetch(
-          "https://taxtrail.telecorpthailand.com/api/v1/team/2",
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-          }
-        );
-
-        if (!res.ok) {
-          throw new Error(`Fetch members failed: ${res.status} ${res.statusText}`);
-        }
-
-        const data = await res.json();
+        // const token =
+        //   localStorage.getItem("token") ||
+        //   localStorage.getItem("accessToken") || "";
+        const t = localStorage.getItem('auth_user')
+        const auth_user = JSON.parse(t)
+        const res = await getmemberbyteam(auth_user.id)
 
         // รองรับหลายรูปแบบ payload ที่พบบ่อย
         // เช่น { data: [...] } หรือ [...] ตรง ๆ
-        const items = Array.isArray(data) ? data : data?.data.members ?? [];
+        const items = Array.isArray(res) ? res : res?.data.members ?? [];
 
         // map ให้มีโครงที่ใช้ใน UI ได้แน่
         const normalized = items?.map((it) => ({
@@ -329,14 +316,14 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
     const selectedMembers = members
       .filter((m) => selectedIds.has(m.id))
       .map((m) => ({
-        id: m.id,
+      //  id: m.id,
         name: m.name,
         email: m.email,
         image: m.image,
         color: m.color,
         textcolor: m.textcolor,
-        roleInTeam:m.raw?.roleInTeam || "member",
-        userId:m.raw?.userId || m.raw?.id || null,
+        roleInTeam: m.raw?.roleInTeam || "member",
+        userId: m.raw?.userId || m.raw?.id || null,
       }));
 
     const project = {
@@ -345,6 +332,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
       startDate,
       endDate,
       totalDays,
+      OwnerId: editData ? editData.ownerId : (localStorage.getItem('auth_user') ? JSON.parse(localStorage.getItem('auth_user')).id : null),
       // เก็บ details เดิม (ถ้ามี) และเพิ่ม members ชัดเจน
       details: editData ? editData.details ?? [] : [],
       members: selectedMembers,
@@ -441,9 +429,8 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
                     return (
                       <li
                         key={m.id}
-                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 ${
-                          checked ? "bg-purple-50" : ""
-                        }`}
+                        className={`flex items-center gap-3 p-3 hover:bg-gray-50 ${checked ? "bg-purple-50" : ""
+                          }`}
                       >
                         <input
                           type="checkbox"
