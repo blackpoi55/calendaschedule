@@ -21,8 +21,8 @@ import { getmember, getrole } from '@/action/api'
 import { useParams } from 'next/navigation'
 
 // ===================== Refresh config =====================
-const ENABLE_POLLING = true            // เปิด/ปิด pull ข้อมูลเป็นระยะ
-const REFRESH_INTERVAL_MS = 30000      // ทุก 30s
+const ENABLE_POLLING = true
+const REFRESH_INTERVAL_MS = 30000
 
 // ========= Presets =========
 const COLUMN_THEMES = [
@@ -41,11 +41,10 @@ const defaultDot = 'bg-slate-400'
 // ========= Helpers =========
 const byPos = (a, b) => a.position - b.position
 const now = () => Date.now()
-const safeNum = (v, d = 0) => {
-  const n = Number(v); return Number.isFinite(n) ? n : d
-}
+const safeNum = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d }
 const slugify = (txt = '') =>
-  (txt.toLowerCase().replace(/[^a-z0-9ก-๙]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 24)) || `col_${Math.random().toString(36).slice(2, 7)}`
+  (txt.toLowerCase().replace(/[^a-z0-9ก-๙]+/gi, '_').replace(/^_+|_+$/g, '').slice(0, 24))
+  || `col_${Math.random().toString(36).slice(2, 7)}`
 const themeToClass = (themeKey) => {
   const t = COLUMN_THEMES.find(x => x.key === themeKey)
   if (!t) return { box: DEFAULT_COL_STYLE, dot: defaultDot }
@@ -68,6 +67,77 @@ const groupByStatus = (items, statuses) => {
   return g
 }
 
+// ========= Image helpers =========
+const IMG_MD_REGEX = /!\[[^\]]*?\]\((data:image\/[a-zA-Z]+;base64,[^)]+)\)/g
+
+function stripImageMarkdown(note) {
+  if (!note) return ''
+  return note.replace(IMG_MD_REGEX, '').replace(/\n{3,}/g, '\n\n').trim()
+}
+function extractAllImageDataUrls(note) {
+  if (!note) return []
+  const arr = []
+  const re = new RegExp(IMG_MD_REGEX)
+  let m
+  while ((m = re.exec(note)) !== null) {
+    if (m[1]) arr.push(m[1])
+  }
+  return arr
+}
+function assembleNote(text, images) {
+  const body = (text || '').trim()
+  const imgLines = (images || []).map((url) => `![image](${url})`)
+  return [body, imgLines.join('\n')].filter(Boolean).join('\n\n').trim()
+}
+function removeImage(images, dataUrl) {
+  return images.filter((u) => u !== dataUrl)
+}
+
+// --- compress image to base64 (JPEG by default) ---
+function loadImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = dataUrl
+  })
+}
+async function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader()
+    fr.onload = () => resolve(String(fr.result || ''))
+    fr.onerror = reject
+    fr.readAsDataURL(file)
+  })
+}
+async function fileToCompressedDataURL(file, {
+  maxW = 1280,
+  maxH = 1280,
+  quality = 0.8,
+  mime = 'image/jpeg', // เลือก JPEG เพื่อลดขนาด
+} = {}) {
+  // 1) อ่านเป็น dataURL เดิม
+  const raw = await fileToDataURL(file)
+  // 2) โหลดรูป
+  const img = await loadImage(raw)
+  // 3) คำนวณขนาดใหม่แบบรักษาอัตราส่วน
+  let { width, height } = img
+  const scale = Math.min(maxW / width, maxH / height, 1)
+  const targetW = Math.round(width * scale)
+  const targetH = Math.round(height * scale)
+
+  // 4) วาดลง canvas
+  const canvas = document.createElement('canvas')
+  canvas.width = targetW
+  canvas.height = targetH
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(img, 0, 0, targetW, targetH)
+
+  // 5) แปลงเป็น dataURL ที่บีบอัดแล้ว
+  const out = canvas.toDataURL(mime, quality)
+  return out
+}
+
 // ===== Status meta + fallback order =====
 const STATUS_META = {
   TODO: { label: 'To Do', theme: 'gray', icon: '📋' },
@@ -81,7 +151,6 @@ const STATUS_ORDER = ['TODO', 'DOING', 'REVIEW', 'DONE']
 function deriveStatusesFromApi(resp) {
   const arr = Array.isArray(resp?.data?.detail?.statuses) ? resp.data.detail.statuses : []
   if (arr.length) {
-    // ใช้ order จาก API
     return [...arr].sort((a, b) => safeNum(a.order) - safeNum(b.order)).map(s => ({
       key: s.key,
       label: s.label ?? STATUS_META[s.key]?.label ?? s.key,
@@ -89,7 +158,6 @@ function deriveStatusesFromApi(resp) {
       icon: s.icon ?? STATUS_META[s.key]?.icon ?? '📋',
     }))
   }
-  // fallback จาก tasks
   const rows = Array.isArray(resp?.data?.detail?.tasks) ? resp.data.detail.tasks : []
   const present = new Set(rows.map(r => r?.status).filter(Boolean))
   const ordered = STATUS_ORDER.filter(k => present.has(k))
@@ -97,19 +165,14 @@ function deriveStatusesFromApi(resp) {
   return base.map(k => ({ key: k, label: STATUS_META[k].label, theme: STATUS_META[k].theme, icon: STATUS_META[k].icon }))
 }
 
-// ✅ ปรับ: ยอมรับ status ตามที่ API ส่งมา (ถ้าไม่รู้จัก map ไปคอลัมน์แรก)
 function adaptTasksFromApi(resp, allowedStatusKeys = []) {
   const rows = Array.isArray(resp?.data?.detail?.tasks) ? resp.data.detail.tasks : []
   const allow = new Set(allowedStatusKeys)
-
   return rows.map(r => {
     const rawStatus = r.status || 'TODO'
-    const status = allow.size === 0
-      ? rawStatus
-      : (allow.has(rawStatus) ? rawStatus : (allowedStatusKeys[0] || 'TODO'))
-
+    const status = allow.size === 0 ? rawStatus : (allow.has(rawStatus) ? rawStatus : (allowedStatusKeys[0] || 'TODO'))
     return {
-      id: r.id, // เป็น string/number ก็ได้
+      id: r.id,
       title: r.title ?? '',
       status,
       position: safeNum(r.position, 0),
@@ -117,7 +180,7 @@ function adaptTasksFromApi(resp, allowedStatusKeys = []) {
       assignees: (r.assignees || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
       assignee: (r.assignees && r.assignees[0]?.name) || null,
       due_date: r.due_date || null,
-      note: r.note || '',
+      note: r.note || '',        // เก็บรูปเป็น Markdown image ใน note (แต่ UI จะไม่โชว์ base64 ใน textarea)
       createdAt: safeNum(r.createdAt ?? r.updatedAt ?? Date.now(), Date.now()),
       updatedAt: safeNum(r.updatedAt ?? Date.now(), Date.now()),
     }
@@ -147,8 +210,32 @@ const rsStyles = {
 const colDragId = (key) => `col:${key}`
 const parseColId = (id) => (typeof id === 'string' && id.startsWith('col:')) ? id.slice(4) : null
 
+// ========= ImageViewer (Lightbox) =========
+function ImageViewer({ src, onClose }) {
+  if (!src) return null
+  return (
+    <>
+      <div className="fixed inset-0 z-[100] bg-black/70" onClick={onClose} />
+      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+        <div className="relative max-h-[90vh] max-w-[90vw]">
+          <img src={src} alt="preview" className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl object-contain" />
+          <button
+            onClick={onClose}
+            className="absolute -top-3 -right-3 rounded-full bg-white/90 px-3 py-1.5 text-sm shadow"
+            title="ปิด"
+          >✕</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ========= Card =========
-function TaskCard({ task, onClick, dragDisabled }) {
+function findFirstImageInNote(note) {
+  const imgs = extractAllImageDataUrls(note)
+  return imgs[0] || null
+}
+function TaskCard({ task, onClick, dragDisabled, onOpenImage }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: !!dragDisabled
@@ -156,6 +243,8 @@ function TaskCard({ task, onClick, dragDisabled }) {
   const assigneeText = Array.isArray(task.assignees) && task.assignees.length
     ? task.assignees.map(a => a.name).join(', ')
     : '-'
+  const thumb = useMemo(() => findFirstImageInNote(task.note), [task.note])
+
   return (
     <div
       ref={setNodeRef}
@@ -168,6 +257,7 @@ function TaskCard({ task, onClick, dragDisabled }) {
         <h4 className="font-medium text-gray-900 leading-tight">{task.title}</h4>
         <span className="text-xs text-gray-400 select-none">#{task.id}</span>
       </div>
+
       {Array.isArray(task.labels) && task.labels.length ? (
         <div className="mt-1 flex flex-wrap gap-1">
           {task.labels.map(l => (
@@ -177,21 +267,34 @@ function TaskCard({ task, onClick, dragDisabled }) {
           ))}
         </div>
       ) : null}
+
+      {thumb ? (
+        <div className="mt-2">
+          <img
+            src={thumb}
+            alt="thumb"
+            className="w-full max-h-32 rounded-lg object-cover border cursor-zoom-in"
+            onClick={(e) => { e.stopPropagation(); onOpenImage?.(thumb) }}
+          />
+        </div>
+      ) : null}
+
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
         <span>👤 {assigneeText}</span>
         {task.due_date && <span className="text-right">📅 {new Date(task.due_date).toLocaleDateString('th-TH')}</span>}
       </div>
-      {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {task.note}</div> : null}
+      {/* แสดง preview ข้อความโน้ต (ไม่โชว์ base64 เพราะถูก strip ออก) */}
+      {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {stripImageMarkdown(task.note)}</div> : null}
     </div>
   )
 }
 
-// ========= Card Overlay =========
 function TaskCardOverlay({ task, size }) {
   if (!task) return null
   const assigneeText = Array.isArray(task.assignees) && task.assignees.length
     ? task.assignees.map(a => a.name).join(', ')
     : '-'
+  const thumb = findFirstImageInNote(task.note)
   return (
     <div
       className="rounded-xl border bg-white p-3 shadow-lg pointer-events-none"
@@ -210,11 +313,18 @@ function TaskCardOverlay({ task, size }) {
           ))}
         </div>
       ) : null}
+      {thumb ? (
+        <div className="mt-2">
+          <div className="w-full h-24 rounded-lg bg-gray-100 border overflow-hidden">
+            <img src={thumb} className="w-full h-full object-cover" />
+          </div>
+        </div>
+      ) : null}
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
         <span>👤 {assigneeText}</span>
         {task.due_date && <span className="text-right">📅 {new Date(task.due_date).toLocaleDateString('th-TH')}</span>}
       </div>
-      {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {task.note}</div> : null}
+      {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {stripImageMarkdown(task.note)}</div> : null}
     </div>
   )
 }
@@ -236,7 +346,6 @@ function SortableColumnShell({ colKey, children }) {
 }
 
 function ColumnDropArea({ id, children }) {
-  // Droppable ของคอลัมน์ (เปิดตลอดเวลา) => คอลัมน์ว่างก็รับการ์ดได้
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <div
@@ -251,7 +360,6 @@ function ColumnDropArea({ id, children }) {
 function Column({ status, label, styleClass, dotClass, onAddTask, onEditColumn, children }) {
   return (
     <div className={`flex h-full flex-col rounded-2xl border shadow-sm hover:shadow ${styleClass || DEFAULT_COL_STYLE}`}>
-      {/* sticky header */}
       <div className="sticky top-0 z-10 -m-px rounded-t-2xl border-b bg-white/80 backdrop-blur px-3 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -264,8 +372,6 @@ function Column({ status, label, styleClass, dotClass, onAddTask, onEditColumn, 
           </div>
         </div>
       </div>
-
-      {/* list area (droppable) */}
       {children}
     </div>
   )
@@ -357,9 +463,12 @@ function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable 
       title={`แก้ไขคอลัมน์: ${column.label}`} onClose={onClose}
       onSubmit={() => onSave({ label: label.trim(), icon, theme })} submitText="บันทึก"
       extraLeft={
-        <button onClick={() => isDeletable ? onDelete() : null} disabled={!isDeletable}
+        <button
+          onClick={() => isDeletable ? onDelete() : null}
+          disabled={!isDeletable}
           className={`rounded-md px-3 py-1.5 text-sm ${isDeletable ? 'border border-red-300 text-red-600 hover:bg-red-50' : 'border text-gray-300 cursor-not-allowed'}`}
-          title={isDeletable ? 'ลบคอลัมน์ (ต้องว่าง)' : 'ต้องลบการ์ดในคอลัมน์ให้หมดก่อน'}>
+          title={isDeletable ? 'ลบคอลัมน์ (ต้องว่าง)' : 'ต้องลบการ์ดในคอลัมน์ให้หมดก่อน'}
+        >
           ลบคอลัมน์
         </button>
       }
@@ -369,14 +478,30 @@ function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable 
   )
 }
 
-/** ------------------ Card Form (React Select Multi) ------------------ */
+/** ------------------ Card Form (React Select + Image uploader, no base64 in textarea) ------------------ */
 function CardFormRS({
   title, setTitle,
   assigneeOptions, assigneeValues, setAssigneeValues,
   labelOptions, labelValues, setLabelValues,
   due, setDue,
-  note, setNote
+  noteText, setNoteText,     // ✨ ข้อความโน้ต "ล้วน" (ไม่รวมรูป)
+  images, setImages,         // ✨ เก็บ dataURL ของรูป
+  onOpenImage
 }) {
+  const onFilesPick = async (files) => {
+    if (!files || files.length === 0) return
+    try {
+      const arr = Array.from(files)
+      const compressed = await Promise.all(
+        arr.map((f) => fileToCompressedDataURL(f, { maxW: 1280, maxH: 1280, quality: 0.8, mime: 'image/jpeg' }))
+      )
+      setImages([...(images || []), ...compressed])
+    } catch (e) {
+      console.error(e)
+      Swal.fire('ผิดพลาด', 'ไม่สามารถอ่าน/บีบอัดไฟล์รูปภาพได้', 'error')
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -404,24 +529,56 @@ function CardFormRS({
         </div>
       </div>
 
+      {/* รูปภาพแนบ */}
       <div>
-        <label className="block text-sm font-medium">ป้าย (Labels)</label>
-        <CreatableSelect
-          isMulti
-          options={labelOptions}
-          value={labelValues}
-          onChange={(vals) => setLabelValues(vals || [])}
-          styles={rsStyles}
-          placeholder="เลือก/พิมพ์เพื่อสร้างป้าย..."
-          className="mt-1"
-          classNamePrefix="rs"
-          formatCreateLabel={(input) => `สร้าง "${input}"`}
-        />
+        <label className="block text-sm font-semibold">รูปภาพที่แนบ</label>
+        <div className="mt-2 flex items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-white hover:bg-gray-50 shadow-sm">
+            <span>🖼️ เพิ่มรูป</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => onFilesPick(e.target.files)}
+            />
+          </label>
+          <span className="text-xs text-gray-500">ไฟล์จะถูกย่อ & บีบอัดอัตโนมัติ แล้วเก็บเป็น base64 (ไม่แสดงในช่องโน้ต)</span>
+        </div>
+
+        {/* แกลเลอรี่รูป */}
+        {images && images.length > 0 ? (
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            {images.map((src, idx) => (
+              <div key={idx} className="group relative">
+                <img
+                  src={src}
+                  className="h-24 w-full rounded-lg object-cover border cursor-zoom-in"
+                  onClick={() => onOpenImage?.(src)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setImages(removeImage(images, src))}
+                  className="absolute top-1 right-1 hidden group-hover:inline-flex rounded-full bg-white/90 text-xs px-2 py-0.5 shadow"
+                  title="ลบรูปนี้"
+                >ลบ</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-2 rounded-md border border-dashed p-3 text-xs text-gray-500">ยังไม่มีรูปที่แนบ</div>
+        )}
       </div>
 
       <div>
         <label className="block text-sm font-medium">โน้ตย่อ</label>
-        <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="รายละเอียดเพิ่มเติม..." />
+        <textarea
+          value={noteText}
+          onChange={e => setNoteText(e.target.value)}
+          rows={4}
+          className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+          placeholder={`พิมพ์รายละเอียดเพิ่มเติม...\n\n(รูปที่แนบจะไม่แสดงเป็นตัวหนังสือในช่องนี้)`}
+        />
       </div>
     </div>
   )
@@ -430,13 +587,17 @@ function CardFormRS({
 /** ------------------ Add Card Modal ------------------ */
 function AddCardModal({
   open, onClose, onCreate, defaultStatus,
-  memberOptions, roleOptions
+  memberOptions, roleOptions,
+  onOpenImage
 }) {
   const [title, setTitle] = useState('งานใหม่')
-  const [assignees, setAssignees] = useState([]) // option[]
-  const [labels, setLabels] = useState([])       // option[]
+  const [assignees, setAssignees] = useState([])
+  const [labels, setLabels] = useState([])
   const [due, setDue] = useState('')
-  const [note, setNote] = useState('')
+
+  // ✨ จัดเก็บโน้ตแบบแยกข้อความ/รูป
+  const [noteText, setNoteText] = useState('')
+  const [images, setImages] = useState([])
 
   if (!open) return null
 
@@ -447,11 +608,14 @@ function AddCardModal({
       onSubmit={() => {
         const assArr = (assignees || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
         const labArr = (labels || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
+
+        const finalNote = assembleNote(noteText, images)
+
         onCreate({
           title: title.trim() || 'งานใหม่',
           labels: labArr,
           due_date: due || undefined,
-          note: note.trim(),
+          note: finalNote,          // ✅ ประกอบข้อความ + รูปเป็น Markdown (base64) ตอนบันทึก
           status: defaultStatus,
           assignees: assArr,
           assignee: assArr[0]?.name || null,
@@ -468,7 +632,9 @@ function AddCardModal({
         labelValues={labels}
         setLabelValues={setLabels}
         due={due} setDue={setDue}
-        note={note} setNote={setNote}
+        noteText={noteText} setNoteText={setNoteText}
+        images={images} setImages={setImages}
+        onOpenImage={onOpenImage}
       />
     </ModalShell>
   )
@@ -477,16 +643,19 @@ function AddCardModal({
 /** ------------------ Edit Card Modal ------------------ */
 function EditCardModal({
   open, onClose, task, onSave, onDelete,
-  memberOptions, roleOptions
+  memberOptions, roleOptions,
+  onOpenImage
 }) {
   const [title, setTitle] = useState(task?.title || '')
-  const [assignees, setAssignees] = useState([]) // option[]
-  const [labels, setLabels] = useState([])       // option[]
+  const [assignees, setAssignees] = useState([])
+  const [labels, setLabels] = useState([])
   const [due, setDue] = useState(task?.due_date || '')
-  const [note, setNote] = useState(task?.note || '')
+
+  // ✨ แตก note เดิมออกเป็นข้อความ/รูป
+  const [noteText, setNoteText] = useState(stripImageMarkdown(task?.note || ''))
+  const [images, setImages] = useState(extractAllImageDataUrls(task?.note || ''))
 
   const toOptions = (objs, pool) => {
-    // map [{id,name}] => option (match by id, fallback by name)
     const byId = new Map((pool || []).map(o => [o.value?.id ?? o.value, o]))
     const byName = new Map((pool || []).map(o => [o.label, o]))
     return (objs || []).map(x => {
@@ -501,7 +670,10 @@ function EditCardModal({
     setAssignees(toOptions(task?.assignees || (task?.assignee ? [{ id: null, name: task.assignee }] : []), memberOptions))
     setLabels(toOptions(task?.labels || [], roleOptions))
     setDue(task?.due_date || '')
-    setNote(task?.note || '')
+
+    // sync note เมื่อ task เปลี่ยน
+    setNoteText(stripImageMarkdown(task?.note || ''))
+    setImages(extractAllImageDataUrls(task?.note || ''))
   }, [task, memberOptions, roleOptions])
 
   if (!open || !task) return null
@@ -513,11 +685,14 @@ function EditCardModal({
       onSubmit={() => {
         const assArr = (assignees || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
         const labArr = (labels || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
+
+        const finalNote = assembleNote(noteText, images)
+
         onSave({
           title: title.trim() || 'งานใหม่',
           labels: labArr,
           due_date: due || undefined,
-          note: note.trim(),
+          note: finalNote,           // ✅ บันทึกเป็น Markdown + base64 ที่ถูกย่อแล้ว
           assignees: assArr,
           assignee: assArr[0]?.name || null,
         })
@@ -538,7 +713,9 @@ function EditCardModal({
         labelValues={labels}
         setLabelValues={setLabels}
         due={due} setDue={setDue}
-        note={note} setNote={setNote}
+        noteText={noteText} setNoteText={setNoteText}
+        images={images} setImages={setImages}
+        onOpenImage={onOpenImage}
       />
     </ModalShell>
   )
@@ -555,7 +732,7 @@ export default function BoardPage() {
   const [error, setError] = useState(null)
 
   const [activeId, setActiveId] = useState(null)
-  const [activeSize, setActiveSize] = useState({ w: 0, h: 0 }) // ขนาด item ตอนเริ่มลาก
+  const [activeSize, setActiveSize] = useState({ w: 0, h: 0 })
   const [dragMode, setDragMode] = useState('none')
 
   const [openAddColumn, setOpenAddColumn] = useState(false)
@@ -563,8 +740,8 @@ export default function BoardPage() {
   const [editColKey, setEditColKey] = useState(null)
   const [editTaskId, setEditTaskId] = useState(null)
 
-  const [roleMap, setroleMap] = useState([])     // [{id,name,...}]
-  const [memberMap, setmemberMap] = useState([]) // [{id,name,email,...}]
+  const [roleMap, setroleMap] = useState([])
+  const [memberMap, setmemberMap] = useState([])
 
   const nextTaskIdRef = useRef(1)
 
@@ -572,15 +749,15 @@ export default function BoardPage() {
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
-  const baselineRef = useRef('')        // JSON string ของสถานะล่าสุดที่ "บันทึกแล้ว"
-  const autosaveTimerRef = useRef(null) // debounce timer
-  const isSavingRef = useRef(false)     // กันซ้อน
-  const lastToastAtRef = useRef(0)      // กัน spam toast
+  const baselineRef = useRef('')
+  const autosaveTimerRef = useRef(null)
+  const isSavingRef = useRef(false)
+  const lastToastAtRef = useRef(0)
 
-  const AUTOSAVE_DELAY = 1200           // ms
-  const TOAST_COOLDOWN = 5000           // ms
+  const AUTOSAVE_DELAY = 1200
+  const TOAST_COOLDOWN = 5000
 
-  const params = useParams() // { id: '...' }
+  const params = useParams()
 
   // ---- Serialize board (stable) ----
   const serializeBoard = (statusesArg, itemsArg) => {
@@ -600,7 +777,7 @@ export default function BoardPage() {
     return JSON.stringify({ statuses, tasks })
   }
 
-  // ---- Save core (used by auto & manual) ----
+  // ---- Save core ----
   const saveBoardCore = async (kind = 'auto') => {
     if (isSavingRef.current) return
     const serialized = serializeBoard(statuses, items)
@@ -608,71 +785,38 @@ export default function BoardPage() {
       setIsDirty(false)
       return
     }
-
-    const payload = {
-      id: boardId,
-      projectId: projectId,
-      detail: JSON.parse(serialized)
-    }
-
+    const payload = { id: boardId, projectId: projectId, detail: JSON.parse(serialized) }
     try {
       isSavingRef.current = true
       setIsSaving(true)
-
       if (kind === 'manual') {
-        Swal.fire({
-          title: 'กำลังบันทึก...',
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          didOpen: () => { Swal.showLoading() }
-        })
+        Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => { Swal.showLoading() } })
       }
-
-      // NOTE: ปรับตาม API จริง ถ้าต้องการ PUT เมื่อมี boardId ให้เปลี่ยนด้านล่าง
       const url = `${API}/kanban`
       const method = 'POST'
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
       }
       const data = await res.json().catch(() => ({}))
-
       baselineRef.current = serialized
       setIsDirty(false)
       setLastSavedAt(Date.now())
-
-      // ✅ refetch ทันทีหลังบันทึก เพื่อ sync กับเครื่องอื่น/แหล่งจริง
       await fetchTasks(projectId)
-
       if (kind === 'manual') {
         Swal.close()
-        await Swal.fire({
-          icon: 'success',
-          title: 'บันทึกสำเร็จ',
-          text: data?.message || 'อัปเดตบอร์ดเรียบร้อย',
-          timer: 1200, showConfirmButton: false
-        })
+        await Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: data?.message || 'อัปเดตบอร์ดเรียบร้อย', timer: 1200, showConfirmButton: false })
       } else {
         const nowTs = Date.now()
         if (nowTs - lastToastAtRef.current > TOAST_COOLDOWN) {
           lastToastAtRef.current = nowTs
-          Swal.fire({
-            toast: true, position: 'top-end', icon: 'success',
-            title: 'บันทึกอัตโนมัติแล้ว',
-            showConfirmButton: false, timer: 1200, timerProgressBar: true
-          })
+          Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกอัตโนมัติแล้ว', showConfirmButton: false, timer: 1200, timerProgressBar: true })
         }
       }
     } catch (e) {
       console.error(e)
-      if (kind === 'manual') {
-        Swal.close()
-      }
+      if (kind === 'manual') Swal.close()
       Swal.fire({ icon: 'error', title: 'บันทึกล้มเหลว', text: String(e?.message || 'ไม่ทราบสาเหตุ') })
     } finally {
       isSavingRef.current = false
@@ -680,48 +824,36 @@ export default function BoardPage() {
     }
   }
 
-  // ---- Auto-save: detect dirty + debounce ----
+  // ---- Auto-save debounce ----
   useEffect(() => {
     const s = serializeBoard(statuses, items)
     const isChanged = s !== baselineRef.current
     setIsDirty(isChanged)
-
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
     if (isChanged) {
-      autosaveTimerRef.current = setTimeout(() => {
-        saveBoardCore('auto')
-      }, AUTOSAVE_DELAY)
+      autosaveTimerRef.current = setTimeout(() => { saveBoardCore('auto') }, AUTOSAVE_DELAY)
     }
-    return () => {
-      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
-    }
+    return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statuses, items])
 
-  // Warn before unload if dirty
+  // Warn before unload
   useEffect(() => {
-    const handler = (e) => {
-      if (isDirty) {
-        e.preventDefault()
-        e.returnValue = ''
-      }
-    }
+    const handler = (e) => { if (isDirty) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
-  // ✅ โหลดข้อมูล: derive statuses ก่อน แล้วค่อย adapt tasks ด้วย allowed keys
+  // Load board data
   async function fetchTasks(projId = params.id) {
     try {
       setLoading(true); setError(null)
-
       const res = await fetch(`${API}/kanban/${projId}`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         throw new Error(`HTTP ${res.status} ${res.statusText} ${text ? `- ${text}` : ''}`)
       }
       const data = await res.json()
-
       setBoardId(data?.data?.id ?? null)
       setProjectId(data?.data?.projectId ?? projId)
 
@@ -741,7 +873,6 @@ export default function BoardPage() {
       const member = await getmember()
       setmemberMap(member?.data || [])
 
-      // baseline หลังโหลด
       baselineRef.current = serializeBoard(nextStatuses, normalized)
       setIsDirty(false)
       setLastSavedAt(null)
@@ -754,40 +885,27 @@ export default function BoardPage() {
     }
   }
 
-  // โหลดครั้งแรก
+  // initial load
   useEffect(() => { fetchTasks(params.id) }, []) // eslint-disable-line
 
-  // ✅ refetch เมื่อกลับมาโฟกัสแท็บ (กันเพี้ยนถ้าหลายเครื่องแก้)
+  // refetch on focus
   useEffect(() => {
     const onFocus = () => fetchTasks(projectId || params.id)
-    window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') onFocus()
-    })
+    window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') onFocus() })
     window.addEventListener('focus', onFocus)
-    return () => {
-      window.removeEventListener('focus', onFocus)
-    }
+    return () => { window.removeEventListener('focus', onFocus) }
   }, [projectId]) // eslint-disable-line
 
-  // ✅ polling เป็นระยะ (เปิด/ปิดได้จาก config ด้านบน)
+  // polling
   useEffect(() => {
     if (!ENABLE_POLLING) return
-    const t = setInterval(() => {
-      // ไม่รบกวนตอนกำลังเซฟ/กำลังแก้ไขหนักๆ
-      if (!isSavingRef.current) fetchTasks(projectId || params.id)
-    }, REFRESH_INTERVAL_MS)
+    const t = setInterval(() => { if (!isSavingRef.current) fetchTasks(projectId || params.id) }, REFRESH_INTERVAL_MS)
     return () => clearInterval(t)
   }, [projectId]) // eslint-disable-line
 
   // ===== React-Select Options =====
-  const roleOptions = useMemo(
-    () => (roleMap || []).map(r => ({ value: { id: r.id ?? null, name: r.name }, label: r.name })),
-    [roleMap]
-  )
-  const memberOptions = useMemo(
-    () => (memberMap || []).map(m => ({ value: { id: m.user.id ?? null, name: m.user.name }, label: m.user.name })),
-    [memberMap]
-  )
+  const roleOptions = useMemo(() => (roleMap || []).map(r => ({ value: { id: r.id ?? null, name: r.name }, label: r.name })), [roleMap])
+  const memberOptions = useMemo(() => (memberMap || []).map(m => ({ value: { id: m.user.id ?? null, name: m.user.name }, label: m.user.name })), [memberMap])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -797,7 +915,6 @@ export default function BoardPage() {
   const cols = useMemo(() => groupByStatus(items, statuses), [items, statuses])
   const activeTask = useMemo(() => items.find(t => t.id === activeId) || null, [activeId, items])
 
-  // --- collision เฉพาะคอลัมน์ตอนลากคอลัมน์
   const dndCollision = dragMode === 'col'
     ? (args) => {
       const allowed = new Set(statuses.map(s => colDragId(s.key)))
@@ -810,8 +927,6 @@ export default function BoardPage() {
   function onDragStart(e) {
     setActiveId(e.active.id)
     setDragMode(parseColId(e.active.id) ? 'col' : 'card')
-
-    // วัดขนาด item ต้นทางให้ overlay เท่ากัน
     const rect = e?.active?.rect?.current?.initial
     if (rect) {
       setActiveSize({ w: Math.round(rect.width), h: Math.round(rect.height) })
@@ -838,7 +953,6 @@ export default function BoardPage() {
     setDragMode('none')
     if (!over) return
 
-    // A) ลากคอลัมน์
     const activeColKey = parseColId(active.id)
     if (mode === 'col') {
       const overColKey = parseColId(over.id)
@@ -849,7 +963,6 @@ export default function BoardPage() {
       return
     }
 
-    // B) ลากการ์ด
     const a = items.find(x => x.id === active.id)
     if (!a) return
     const next = [...items]
@@ -881,7 +994,6 @@ export default function BoardPage() {
       write(origin, from); write(target, to); setItems(next); return
     }
 
-    // วางลงคอลัมน์ (ปลายทางเป็น id = status key) — รองรับคอลัมน์ว่าง
     const dropCol = statuses.find(s => s.key === over.id)?.key
     if (dropCol) {
       const from = a.status
@@ -905,7 +1017,7 @@ export default function BoardPage() {
   }
 
   function createCard(payload) {
-    const id = String(nextTaskIdRef.current++) // เก็บเป็น string เพื่อไม่ชน format จาก API
+    const id = String(nextTaskIdRef.current++)
     const status = payload.status
     const lastPos = Math.max(-1, ...items.filter(t => t.status === status).map(t => t.position))
     const newTask = {
@@ -914,7 +1026,7 @@ export default function BoardPage() {
       assignees: (payload.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
       assignee: payload.assignee || (payload.assignees?.[0]?.name ?? null),
       due_date: payload.due_date || null,
-      note: payload.note || '',
+      note: payload.note || '',   // note ถูกประกอบจาก modal แล้ว
       createdAt: now(), updatedAt: now()
     }
     setItems(prev => normalize([...prev, newTask], statuses))
@@ -951,21 +1063,18 @@ export default function BoardPage() {
     setEditTaskId(null)
   }
 
-  // ---- Manual save (fallback) ----
+  // ---- Image Lightbox ----
+  const [viewerSrc, setViewerSrc] = useState(null)
+  const openImage = (src) => setViewerSrc(src)
+  const closeImage = () => setViewerSrc(null)
+
+  // ---- Manual save ----
   const onManualSave = () => saveBoardCore('manual')
 
   return (
     <div className="mx-auto min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* Global loading overlay */}
-      {/* {loading && (
-        // <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/60 backdrop-blur-sm">
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="flex items-center gap-3 rounded-xl border bg-white px-4 py-3 shadow">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-indigo-600"></span>
-            <span className="text-sm text-gray-700">กำลังโหลดข้อมูล...</span>
-          </div>
-        </div>
-      )} */}
+      {/* Lightbox for images */}
+      <ImageViewer src={viewerSrc} onClose={closeImage} />
 
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -974,8 +1083,6 @@ export default function BoardPage() {
               <h1 className="text-2xl font-bold">Kanban (จาก API)</h1>
               <div className="text-sm text-gray-500">ลากการ์ด/คอลัมน์เพื่อจัดลำดับ • คลิกการ์ดเพื่อแก้ไข</div>
             </div>
-
-            {/* Save status indicator */}
             <div className="ml-2 rounded-full border px-2.5 py-1 text-xs">
               {isSaving ? (
                 <span className="inline-flex items-center gap-1 text-indigo-700">
@@ -993,7 +1100,6 @@ export default function BoardPage() {
                   {lastSavedAt ? <span className="ml-1 text-emerald-600/70">({new Date(lastSavedAt).toLocaleTimeString('th-TH')})</span> : null}
                 </span>
               )}
-
             </div>
             {loading && (
               <div className="ml-2 rounded-full border px-2.5 py-1 text-xs">
@@ -1010,7 +1116,6 @@ export default function BoardPage() {
               <span className="text-lg">➕</span> เพิ่มคอลัมน์
             </button>
 
-            {/* ปุ่มบันทึก: โชว์เฉพาะตอน dirty */}
             {isDirty && (
               <button
                 onClick={onManualSave}
@@ -1043,7 +1148,6 @@ export default function BoardPage() {
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
-          {/* ชั้นคอลัมน์: ใช้ id = col:<key> สำหรับลากสลับคอลัมน์ */}
           <SortableContext items={statuses.map(s => colDragId(s.key))} strategy={horizontalListSortingStrategy}>
             <div className="h-[calc(100vh-160px)] w-full overflow-x-auto overflow-y-hidden">
               <div className="flex h-full gap-4 pr-4">
@@ -1061,13 +1165,18 @@ export default function BoardPage() {
                           onAddTask={() => setOpenAddCardFor(key)}
                           onEditColumn={openEditColumn}
                         >
-                          {/* Droppable ของคอลัมน์ */}
                           <ColumnDropArea id={key}>
                             {tasks.length === 0 ? (
                               <div className="min-h-[80px] rounded-md border border-dashed border-slate-300" />
                             ) : null}
                             {tasks.map(t => (
-                              <TaskCard key={t.id} task={t} dragDisabled={dragMode === 'col'} onClick={() => openEditTask(t.id)} />
+                              <TaskCard
+                                key={t.id}
+                                task={t}
+                                dragDisabled={dragMode === 'col'}
+                                onClick={() => openEditTask(t.id)}
+                                onOpenImage={openImage}
+                              />
                             ))}
                           </ColumnDropArea>
                         </Column>
@@ -1079,14 +1188,10 @@ export default function BoardPage() {
             </div>
           </SortableContext>
 
-          {/* ใช้ snapCenterToCursor + ทำเงาเท่าของจริงด้วย activeSize */}
           <DragOverlay modifiers={[snapCenterToCursor]}>
             {parseColId(activeId)
               ? (
-                <div
-                  className="rounded-xl border bg-white p-3 shadow-lg pointer-events-none"
-                  style={{ width: 320 }}
-                >
+                <div className="rounded-xl border bg-white p-3 shadow-lg pointer-events-none" style={{ width: 320 }}>
                   {statuses.find(s => s.key === parseColId(activeId))?.label || null}
                 </div>
               )
@@ -1107,6 +1212,7 @@ export default function BoardPage() {
         defaultStatus={openAddCardFor || ''}
         memberOptions={memberOptions}
         roleOptions={roleOptions}
+        onOpenImage={openImage}
       />
 
       <EditColumnModal
@@ -1126,6 +1232,7 @@ export default function BoardPage() {
         onDelete={deleteTask}
         memberOptions={memberOptions}
         roleOptions={roleOptions}
+        onOpenImage={openImage}
       />
     </div>
   )
