@@ -38,7 +38,7 @@ export default function Home() {
   // Manage Modals
   const [openRoleManage, setOpenRoleManage] = useState(false);
   const [openMemberManage, setOpenMemberManage] = useState(false);
-
+  const [userdata, setuserdata] = useState({})
   const [roleMap, setroleMap] = useState([]);
   const [memberMap, setmemberMap] = useState([]);
 
@@ -60,6 +60,7 @@ export default function Home() {
     // setmemberMap(member?.data || []);
     let user = localStorage.getItem("auth_user");
     user = JSON.parse(user);
+    setuserdata(user);
     const members = await getmemberbyteam(user.id);
     console.log(members?.data?.members)
     if (!members?.data?.members) {
@@ -77,7 +78,7 @@ export default function Home() {
       totalDays: project.totalDays,
       members: project.members,
       description: project.description || "",
-      OwnerId: user.id,
+      OwnerId: userdata.id,
     };
 
     res = project.id ? await editproject(project.id, val) : await addproject(val);
@@ -153,7 +154,7 @@ export default function Home() {
   // ดึงสมาชิกจาก ProjectMembers ของแต่ละโปรเจค
   const getProjectMembers = (project) =>
     (project.ProjectMembers || []).map(pm => ({
-      id: pm.user?.id ?? pm.userId,
+      id: pm.userdata?.id ?? pm.userId,
       name: pm.user?.name ?? "Unknown",
       email: pm.user?.email ?? "",
       role: pm.roleInProject ?? "",
