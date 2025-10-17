@@ -77,7 +77,7 @@ export default function Home() {
       totalDays: project.totalDays,
       members: project.members,
       description: project.description || "",
-      OwnerId: project.OwnerId,
+      OwnerId: user.id,
     };
 
     res = project.id ? await editproject(project.id, val) : await addproject(val);

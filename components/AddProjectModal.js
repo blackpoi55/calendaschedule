@@ -12,6 +12,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
     startDate: today.format("YYYY-MM-DD"),
     endDate: today.add(7, "day").format("YYYY-MM-DD"),
     totalDays: 8,
+    memberId: "",
   });
 
   // ====== Members (from API) ======
@@ -83,6 +84,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
         startDate: start.format("YYYY-MM-DD"),
         endDate: end.format("YYYY-MM-DD"),
         totalDays: end.diff(start, "day") + 1,
+        memberId: editData.memberId || "",
       });
 
       // ✅ เผื่อกรณี members จาก API ยังมาไม่ทัน → preset ชั่วคราวจาก ProjectMembers
@@ -164,7 +166,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
   const clearAll = () => setSelectedIds(new Set());
 
   const handleSave = () => {
-    const { name, startDate, endDate, totalDays } = formData;
+    const { name, startDate, endDate, totalDays, memberId } = formData;
 
     if (!name || !startDate || !endDate) {
       Swal.fire("ผิดพลาด", "กรุณากรอกข้อมูลให้ครบทุกช่อง!", "error");
