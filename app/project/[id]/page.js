@@ -41,7 +41,7 @@ export default function ProjectDetail() {
 
   const refresh = async () => {
     // projects
-    const data = await getproJects();
+    const data = await getproJects(id);
     if (data?.data?.length) {
       const found = data.data.find((p) => String(p.id) === String(id));
       setproject(found || null);
