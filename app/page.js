@@ -21,6 +21,14 @@ import {
 } from "@/action/api";
 import AddRoleModal from "@/components/AddRoleModal";
 import AddMemberModal from "@/components/AddMemberModal";
+import {
+  ClipboardDocumentListIcon,
+  RectangleGroupIcon,
+  ChartBarIcon,
+  CalendarDaysIcon,
+  PencilSquareIcon,
+  TrashIcon,
+} from "@heroicons/react/24/solid";
 
 dayjs.extend(isBetween);
 
@@ -420,31 +428,61 @@ export default function Home() {
                     </td>
 
                     <td className="p-3 text-center flex justify-center gap-3">
-                      <button onClick={() => router.push(`/project/${p.id}/board`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
-                        {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ดูรายละเอียด</span> */}
-                        Board
+                      {/* Task */}
+                      <button
+                        onClick={() => router.push(`/project/${p.id}`)}
+                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        title="Task"
+                      >
+                        <ClipboardDocumentListIcon className="w-5 h-5" />
                       </button>
-                      <button onClick={() => router.push(`/project/${p.id}/dashboard`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
-                        {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ดูรายละเอียด</span> */}
-                        Dashboard
+
+                      {/* Board */}
+                      <button
+                        onClick={() => router.push(`/project/${p.id}/board`)}
+                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        title="Board"
+                      >
+                        <RectangleGroupIcon className="w-5 h-5" />
                       </button>
-                      <button onClick={() => router.push(`/project/${p.id}/gantt`)} className=" w-14 text-white relative group p-1 bg-purple-500 rounded-full hover:bg-purple-600 transition">
-                        {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ดูรายละเอียด</span> */}
-                        Gantt
+
+                      {/* Dashboard */}
+                      <button
+                        onClick={() => router.push(`/project/${p.id}/dashboard`)}
+                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        title="Dashboard"
+                      >
+                        <ChartBarIcon className="w-5 h-5" />
                       </button>
+
+                      {/* Gantt */}
+                      <button
+                        onClick={() => router.push(`/project/${p.id}/gantt`)}
+                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        title="Gantt"
+                      >
+                        <CalendarDaysIcon className="w-5 h-5" />
+                      </button>
+
+                      {/* Edit */}
                       <button
                         onClick={() => {
                           setEditProject(p);
                           setOpenModal(true);
                         }}
-                        className=" w-14 text-white relative group p-1 bg-yellow-400 rounded-full hover:bg-yellow-500 transition"
+                        className="w-10 h-10 flex items-center justify-center text-white bg-yellow-400 rounded-full hover:bg-yellow-500 transition"
+                        title="แก้ไข"
                       >
-                        {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">แก้ไข</span> */}
-                        แก้ไข
+                        <PencilSquareIcon className="w-5 h-5" />
                       </button>
-                      <button onClick={() => handleDelete(p.id)} className=" w-14 text-white relative group p-1 bg-red-500 rounded-full hover:bg-red-600 transition">
-                        {/* <span className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-xs px-2 py-1 rounded">ลบ</span> */}
-                        ลบ
+
+                      {/* Delete */}
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        className="w-10 h-10 flex items-center justify-center text-white bg-red-500 rounded-full hover:bg-red-600 transition"
+                        title="ลบ"
+                      >
+                        <TrashIcon className="w-5 h-5" />
                       </button>
                     </td>
                   </tr>
