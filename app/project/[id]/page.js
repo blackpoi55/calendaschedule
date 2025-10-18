@@ -141,9 +141,9 @@ export default function ProjectDetail() {
     });
   };
 
-  if (!project) {
-    return <div className="text-center mt-20 text-red-500 text-xl">❌ ไม่พบโปรเจค</div>;
-  }
+  // if (!project) {
+  //   return <div className="text-center mt-20 text-red-500 text-xl">❌ ไม่พบโปรเจค</div>;
+  // }
 
   const overdueTasks = tasks.filter((task) => projectEnd && dayjs(task.end).isAfter(projectEnd, "day"));
   const maxOverdueTask =
