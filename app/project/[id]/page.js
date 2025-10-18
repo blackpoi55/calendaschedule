@@ -12,7 +12,9 @@ import {
   edittask,
   getproJects,
   getrole,     // ✅ ใช้ API จริง
-  getmember,   // ✅ ใช้ API จริง
+  getmember,
+  getmemberbyteam,
+  getproJectsById,   // ✅ ใช้ API จริง
 } from "@/action/api";
 
 export default function ProjectDetail() {
@@ -59,8 +61,8 @@ export default function ProjectDetail() {
     const roleRes = await getrole().catch(() => ({}));
     setroleMap(roleRes?.data || []);
 
-    const memRes = await getmember().catch(() => ({}));
-    setmemberMap(memRes?.data || []);
+    const memRes = await getproJectsById(id).catch(() => ({}));
+    setmemberMap(memRes?.data.ProjectMembers || []);
   };
 
   // sync & auto navigate calendar
@@ -164,27 +166,25 @@ export default function ProjectDetail() {
               onClick={() => router.push("/")}
               className="text-2xl font-bold text-purple-600 mb-4 cursor-pointer flex items-center gap-2 hover:scale-105 hover:text-purple-800 transition"
             >
-              🔙 <span>{project.name}</span>
+              🔙 <span>{project?.name}</span>
             </h2>
           </div>
           <div className="flex w-1/2 justify-end items-center">
             <button
               onClick={() => setmodeChoose("Calenda")}
-              className={`rounded-l-lg p-2 ${
-                modeChoose === "Calenda"
-                  ? " bg-gradient-to-r from-purple-300 to-pink-400 text-white "
-                  : " bg-gray-500 text-white "
-              }`}
+              className={`rounded-l-lg p-2 ${modeChoose === "Calenda"
+                ? " bg-gradient-to-r from-purple-300 to-pink-400 text-white "
+                : " bg-gray-500 text-white "
+                }`}
             >
               Calenda
             </button>
             <button
               onClick={() => setmodeChoose("GanttChart")}
-              className={`rounded-r-lg p-2 ${
-                modeChoose === "GanttChart"
-                  ? " bg-gradient-to-r from-purple-300 to-pink-400 text-white "
-                  : " bg-gray-500 text-white "
-              }`}
+              className={`rounded-r-lg p-2 ${modeChoose === "GanttChart"
+                ? " bg-gradient-to-r from-purple-300 to-pink-400 text-white "
+                : " bg-gray-500 text-white "
+                }`}
             >
               GanttChart
             </button>
@@ -192,10 +192,10 @@ export default function ProjectDetail() {
         </div>
 
         <p className="mb-2">
-          <span className="font-semibold">ระยะเวลา:</span> {formatDate(project.startDate)} - {formatDate(project.endDate)}
+          <span className="font-semibold">ระยะเวลา:</span> {formatDate(project?.startDate)} - {formatDate(project?.endDate)}
         </p>
         <p className="mb-4">
-          <span className="font-semibold">รวม:</span> {project.totalDays} วัน
+          <span className="font-semibold">รวม:</span> {project?.totalDays} วัน
         </p>
 
         {/* 🔴 งานเกินกำหนด */}
@@ -365,6 +365,7 @@ export default function ProjectDetail() {
 
       {openTaskModal && (
         <AddTaskModal
+          id={id}
           onClose={() => {
             setOpenTaskModal(false);
             setEditTask(null);

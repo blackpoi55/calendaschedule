@@ -2,11 +2,11 @@
 import { useState, useEffect } from "react";
 import dayjs from "dayjs";
 import Swal from "sweetalert2";
-import { getrole, getmember } from "@/action/api";
+import { getrole, getmember, getproJectsById } from "@/action/api";
 
-export default function AddTaskModal({ onClose, onSave, editData, preFillDates }) {
+export default function AddTaskModal({ id, onClose, onSave, editData, preFillDates }) {
   const today = dayjs();
-
+  console.log("id", id);
   const [data, setData] = useState({
     id: undefined,
     name: "",
@@ -28,9 +28,32 @@ export default function AddTaskModal({ onClose, onSave, editData, preFillDates }
   useEffect(() => {
     (async () => {
       try {
-        const [rolesRes, membersRes] = await Promise.all([getrole(), getmember()]);
+        const [rolesRes, projectRes] = await Promise.all([getrole(), getproJectsById(id)]);
         setRoleMap(rolesRes?.data || []);
-        setMemberMap(membersRes?.data || []);
+        // setMemberMap(membersRes?.data.ProjectMembers || []);
+        // note: API คืน data เป็นอาเรย์ของโปรเจกต์
+        const proj = Array.isArray(projectRes?.data) ? projectRes.data[0] : projectRes?.data;
+        const rawMembers = proj?.ProjectMembers || [];
+
+        const mappedMembers = rawMembers.map((pm) => {
+          const u = pm?.user || {};
+          const uid = String(u.id ?? pm.userId ?? "");
+          const display = u.name || u.email || `User ${uid}`;
+          const bg = pickColorFromId(uid);
+          return {
+            // รูปแบบที่โค้ดด้านล่างของคุณใช้อยู่
+            id: uid,                     // ✅ ให้ id เป็นสตริง
+            name: display,               // ✅ labelOf() จะหยิบจาก name/label
+            label: display,
+            email: u.email || "",
+            roleInProject: pm.roleInProject || "member",
+            color: bg,                   // ✅ ใช้เป็นพื้นหลังเมื่อ selected
+            textcolor: "#ffffff",
+            image: svgInitialAvatar(display, bg, "#ffffff"), // ✅ แทรกเป็น inline SVG
+          };
+        });
+
+        setMemberMap(mappedMembers);
       } catch (e) {
         console.error(e);
         Swal.fire("ผิดพลาด", "โหลดข้อมูล Role/Member ไม่สำเร็จ", "error");
@@ -38,7 +61,7 @@ export default function AddTaskModal({ onClose, onSave, editData, preFillDates }
         setLoadingMaps(false);
       }
     })();
-  }, []);
+  }, [id]);
 
   // utils
   const toStr = (v) => (v ?? "").toString();
@@ -217,6 +240,32 @@ export default function AddTaskModal({ onClose, onSave, editData, preFillDates }
       };
     });
   };
+  // ===== helper: ทำสีจาก id แบบ deterministic =====
+  function pickColorFromId(id) {
+    const s = String(id);
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+    // H[0..359], S/V fixed เพื่อให้อ่านง่าย
+    const h = Math.abs(hash) % 360;
+    return `hsl(${h} 70% 35%)`; // สีพื้น
+  }
+  function svgInitialAvatar(text = "", bg = "#111827", fg = "#fff") {
+    const t = (text || "").trim();
+    const initials = t.length
+      ? t
+        .split(/\s+/)
+        .map((w) => w[0]?.toUpperCase())
+        .slice(0, 2)
+        .join("")
+      : "?";
+    const svg = `
+<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'>
+  <rect width='100%' height='100%' rx='4' ry='4' fill='${bg}' />
+  <text x='50%' y='58%' text-anchor='middle' font-family='Inter,Arial' font-size='12' fill='${fg}'>${initials}</text>
+</svg>`;
+    return svg;
+  }
+
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

@@ -50,6 +50,11 @@ export const getproJects = (id) => {
     return GET("/tm_project/getbyOwnerId/" + id)
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
+export const getproJectsById = (id) => {
+    //return GET("/projectTaskAssignment/grouped/getTaskAssignments")
+    return GET("/tm_project/getbyProjectId/" + id)
+    //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
+}
 export const editproject = (id, data) => {
     return PUT("/tm_project/" + id, data)
 }
