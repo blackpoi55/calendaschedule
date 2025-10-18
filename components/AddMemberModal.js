@@ -142,8 +142,9 @@ function AddMemberModal({ data = [], onClose, refresh }) {
 
   setLoading(true);
   try {
+    console.log(data[0])
     const payload = {
-      teamId: userData.id,
+      teamId: data[0].teamId,
       userId: u.id ?? u.userId ?? u._id,
       roleInProject: "member",
     };
