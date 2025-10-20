@@ -4,10 +4,10 @@ import Link from 'next/link'
 import { registerApi, extractToken } from '../../../action/api'
 
 export default function RegisterPage() {
-  const [username, setUsername] = useState('adisorn.th')  // ตัวอย่างตาม cURL
-  const [email, setEmail]       = useState('adisorn.th@telecorpthailand.com')
-  const [password, setPassword] = useState('11681168')
-  const [confirm, setConfirm]   = useState('11681168')
+  const [username, setUsername] = useState('')  // ตัวอย่างตาม cURL
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm]   = useState('')
   const [showPwd, setShowPwd]   = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
@@ -21,7 +21,7 @@ export default function RegisterPage() {
     }
     setLoading(true)
     try {
-      const resp = await registerApi({ username: username.trim(), password, email: email.trim() })
+      const resp = await registerApi({ username: username.trim(),name:username.trim(), password, email: email.trim() })
       // บางระบบ register แล้ว login ให้เลย; ถ้ามี token ก็เก็บ
       const token = extractToken(resp)
       if (token) localStorage.setItem('auth_token', token)

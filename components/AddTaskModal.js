@@ -269,7 +269,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-lg rounded-xl shadow-lg p-6">
+      <div className="bg-white w-full max-w-7xl rounded-xl shadow-lg p-6">
         <h2 className="text-2xl font-bold text-purple-600 mb-4">
           {editData ? "✏ แก้ไขงาน" : "➕ เพิ่มงาน"}
         </h2>

@@ -337,7 +337,7 @@ export default function ProjectDetail() {
           }}
           className="mt-4 w-full py-2 bg-gradient-to-r from-purple-300 to-pink-400 text-white rounded-xl shadow hover:scale-105 transition"
         >
-          + เพิ่มตำแหน่ง
+          + Task ใหม่
         </button>
       </div>
 

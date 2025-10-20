@@ -25,7 +25,15 @@ function AddMemberModal({ data = [], onClose, refresh }) {
   const abortRef = useRef(null);
   const debounceRef = useRef(null);
   const [userData, setuserData] = useState({});
-
+  const initials = (name = "") =>
+    name
+      .trim()
+      .split(/\s+/)
+      .map(w => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
   useEffect(() => {
     console.log(data.length, data)
   }, [])
@@ -121,56 +129,56 @@ function AddMemberModal({ data = [], onClose, refresh }) {
     };
   }, [search]);
 
- const pickUser = async (u) => {
-  // เคลียร์ debounce + ยกเลิก request ที่กำลังวิ่ง
-  if (debounceRef.current) window.clearTimeout(debounceRef.current);
-  if (abortRef.current) abortRef.current.abort();
+  const pickUser = async (u) => {
+    // เคลียร์ debounce + ยกเลิก request ที่กำลังวิ่ง
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (abortRef.current) abortRef.current.abort();
 
-  // ปิด dropdown และหยุด trigger search
-  setResults([]);
-  setActiveIdx(-1);
-  setSearch("");
+    // ปิด dropdown และหยุด trigger search
+    setResults([]);
+    setActiveIdx(-1);
+    setSearch("");
 
-  // กันกดซ้ำ
-  if (loading) return;
+    // กันกดซ้ำ
+    if (loading) return;
 
-  // ต้องมี teamId จาก localStorage (auth_user)
-  if (!userData?.id) {
-    Swal.fire("ไม่พบทีม", "ไม่พบ teamId ของคุณ (auth_user.id) ใน localStorage", "error");
-    return;
-  }
+    // ต้องมี teamId จาก localStorage (auth_user)
+    if (!userData?.id) {
+      Swal.fire("ไม่พบทีม", "ไม่พบ teamId ของคุณ (auth_user.id) ใน localStorage", "error");
+      return;
+    }
 
-  setLoading(true);
-  try {
-    console.log(data[0])
-    const payload = {
-      teamId: data[0].teamId,
-      userId: u.id ?? u.userId ?? u._id,
-      roleInProject: "member",
-    };
+    setLoading(true);
+    try {
+      console.log(data[0])
+      const payload = {
+        teamId: data[0].teamId,
+        userId: u.id ?? u.userId ?? u._id,
+        roleInProject: "member",
+      };
 
-    await addmemberteam(payload);
+      await addmemberteam(payload);
 
-    Swal.fire({
-      title: "สำเร็จ",
-      text: `เพิ่ม ${u.name || u.fullName || u.username || "สมาชิก"} เข้าทีมแล้ว`,
-      icon: "success",
-      timer: 1500,
-      showConfirmButton: false,
-    });
+      Swal.fire({
+        title: "สำเร็จ",
+        text: `เพิ่ม ${u.name || u.fullName || u.username || "สมาชิก"} เข้าทีมแล้ว`,
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
 
-    // รีเฟรชตาราง
-    refresh?.();
+      // รีเฟรชตาราง
+      refresh?.();
 
-    // โฟกัสกลับช่องชื่อ (ต่อ flow เดิมให้ลื่น)
-    nameRef.current?.focus();
-  } catch (e) {
-    console.error("Add member by pickUser failed:", e);
-    Swal.fire("เกิดข้อผิดพลาด", "ไม่สามารถเพิ่มสมาชิกได้", "error");
-  } finally {
-    setLoading(false);
-  }
-};
+      // โฟกัสกลับช่องชื่อ (ต่อ flow เดิมให้ลื่น)
+      nameRef.current?.focus();
+    } catch (e) {
+      console.error("Add member by pickUser failed:", e);
+      Swal.fire("เกิดข้อผิดพลาด", "ไม่สามารถเพิ่มสมาชิกได้", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
 
@@ -216,24 +224,24 @@ function AddMemberModal({ data = [], onClose, refresh }) {
         , roleInProject: "member"
       };
 
-    //  if (form.id == null) {
-    //     await addmemberteam(payload);
-    //     Swal.fire({
-    //       title: "สำเร็จ",
-    //       text: "เพิ่ม Member ใหม่แล้ว",
-    //       icon: "success",
-    //       timer: 1500,
-    //       showConfirmButton: false,
-    //     });
-    //   } else {
-        await editmember(form.id, payload);
-        Swal.fire({
-          title: "สำเร็จ",
-          text: "แก้ไข Member แล้ว",
-          icon: "success",
-          timer: 1500,
-          showConfirmButton: false,
-        });
+      //  if (form.id == null) {
+      //     await addmemberteam(payload);
+      //     Swal.fire({
+      //       title: "สำเร็จ",
+      //       text: "เพิ่ม Member ใหม่แล้ว",
+      //       icon: "success",
+      //       timer: 1500,
+      //       showConfirmButton: false,
+      //     });
+      //   } else {
+      await editmember(form.id, payload);
+      Swal.fire({
+        title: "สำเร็จ",
+        text: "แก้ไข Member แล้ว",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
       // }
       refresh?.();
       resetForm();
@@ -505,9 +513,12 @@ function AddMemberModal({ data = [], onClose, refresh }) {
                             dangerouslySetInnerHTML={{ __html: r.user.image }}
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-full border flex items-center justify-center text-xs text-gray-500">
-                            N/A
-                          </div>
+                          // <div className="w-10 h-10 rounded-full border flex items-center justify-center text-xs text-gray-500">
+                          //   N/A
+                          // </div>
+                          <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-purple-500 group-hover:scale-105 transition">
+                            {initials(r?.user?.name)}
+                          </span>
                         )}
                       </td>
                       <td className="p-3 font-medium">{r?.user.name}</td>

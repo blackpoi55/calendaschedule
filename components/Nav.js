@@ -120,7 +120,7 @@ export default function Nav() {
             <Link href="/" className="group flex items-center gap-2">
               <div className="h-6 w-6 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 ring-2 ring-indigo-200" />
               <span className="font-semibold tracking-tight group-hover:text-indigo-600">
-                BCH Console
+                H-series Team
               </span>
             </Link>
           </div>
