@@ -18,7 +18,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
     end: today.add(3, "day").format("YYYY-MM-DD"),
     member: [],         // เก็บ id (string) ของสมาชิกใน state
     remark: "",
-    project_id: undefined, // เผื่อแก้ไข จะติดมาใน editData
+    project_id: id, // เผื่อแก้ไข จะติดมาใน editData
   });
 
   const [roleMap, setRoleMap] = useState([]);
@@ -185,7 +185,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
 
   const handleSave = () => {
     const { id, project_id, name, roleId, days, start, end, member, remark, description } = data;
-
+    console.log(data)
     if (!name.trim() || !start || !end) {
       Swal.fire("ผิดพลาด", "กรอก 'ชื่องาน', 'วันที่เริ่ม', 'วันที่สิ้นสุด' ให้ครบ!", "error");
       return;
@@ -209,8 +209,8 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
 
     onSave({
       ...(id ? { id } : {}),
-      ...(project_id ? { project_id } : {}),   // ✅ แนบ project_id มาให้ด้วยถ้ามี (สำคัญตอน edit)
-      name,
+      ...(project_id ? { project_id: parseInt(project_id) } : {}),   // ✅ แนบ project_id มาให้ด้วยถ้ามี (สำคัญตอน edit)
+      name: name,
       role: roleId ? (Number.isNaN(Number(roleId)) ? roleId : Number(roleId)) : "", // ✅ ส่ง role เป็น id
       description,
       days: calcDays,
