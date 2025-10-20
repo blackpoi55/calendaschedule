@@ -14,7 +14,9 @@ import {
   getrole,     // ✅ ใช้ API จริง
   getmember,
   getmemberbyteam,
-  getproJectsById,   // ✅ ใช้ API จริง
+  getproJectsById,
+  getTaskByProjectId,
+  createTask,   // ✅ ใช้ API จริง
 } from "@/action/api";
 
 export default function ProjectDetail() {
@@ -43,13 +45,15 @@ export default function ProjectDetail() {
 
   const refresh = async () => {
     // projects
-    const data = await getproJects(id);
+    const data = await getTaskByProjectId(id);
+    console.log("Project Tasks Data:", data.data);
     if (data?.data?.length) {
-      const found = data.data.find((p) => String(p.id) === String(id));
-      setproject(found || null);
-      setTasks(found?.details || []);
-      setFilteredTasks(found?.details || []);
-      setprojectEnd(dayjs(found?.endDate));
+      //const found = data.data.find((p) => String(p.id) === String(id));
+      console.log("Project Tasks Data2:", data?.data[0].members);
+      setproject(data?.data || null);
+      setTasks(data?.data || []);
+      setFilteredTasks(data?.data || []);
+      setprojectEnd(dayjs(data?.data[0].end));
     } else {
       setproject(null);
       setTasks([]);
@@ -108,7 +112,7 @@ export default function ProjectDetail() {
     let res;
     const { id: taskId, ...taskData } = task;
     if (taskId) res = await edittask(taskId, taskData);
-    else res = await addtask(taskData);
+    else res = await createTask(taskData);
 
     if (!res?.error) {
       Swal.fire("สำเร็จ", editTask ? "แก้ไข Task เรียบร้อย!" : "เพิ่ม Task ใหม่เรียบร้อย!", "success");
@@ -258,7 +262,7 @@ export default function ProjectDetail() {
                     style={{ color: roleData?.color || "#6b21a8" }}
                     title={roleData?.label || roleData?.name || t.role}
                   >
-                    {t.role}
+                    {t.name}
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">{t.days} วัน</span>
