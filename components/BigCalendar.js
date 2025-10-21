@@ -3,7 +3,7 @@ import { useState, forwardRef, useImperativeHandle } from "react";
 import { Calendar, dayjsLocalizer } from "react-big-calendar";
 import dayjs from "dayjs";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import {roleOptions } from "@/lib/mockData";
+import { roleOptions } from "@/lib/mockData";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
 
@@ -13,7 +13,9 @@ dayjs.extend(timezone);
 const localizer = dayjsLocalizer(dayjs);
 
 const getRoleColor = (roleName) => {
-  const role = roleOptions.find((r) => r.label === roleName);
+  const role = roleOptions.find((r) => r.label == roleName);
+  console.log("roleOptions", roleOptions)
+  console.log(roleName)
   return role ? role.color : "#6b21a8"; // Default ม่วง
 };
 
@@ -35,8 +37,8 @@ const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
     title: `${t.name} (${t.days} วัน)`,
     start: dayjs.tz(t.start, "Asia/Bangkok").toDate(),
     end: dayjs.tz(t.end, "Asia/Bangkok").add(1, "day").toDate(), // ✅ บวก 1 วัน
-    allDay: true, 
-    role: t.name || "",
+    allDay: true,
+    role: t.role || "",
     remark: t.description || "",
     originalTask: t,
   }));

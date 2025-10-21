@@ -33,6 +33,7 @@ export default function ProjectDetail() {
   const [projectEnd, setprojectEnd] = useState(null);
   const [modeChoose, setmodeChoose] = useState("Calenda");
   const [project, setproject] = useState(null);
+  const [projectidData, setprojectidData] = useState(null);
 
   // ✅ ใช้ข้อมูลจาก API
   const [roleMap, setroleMap] = useState([]);       // ex: [{ id|value|label|name, color }]
@@ -67,6 +68,8 @@ export default function ProjectDetail() {
 
     const memRes = await getproJectsById(id).catch(() => ({}));
     setmemberMap(memRes?.data.ProjectMembers || []);
+    console.log("memRes?.data",memRes?.data[0])
+    setprojectidData(memRes?.data[0] || null);
   };
 
   // sync & auto navigate calendar
@@ -196,7 +199,7 @@ export default function ProjectDetail() {
         </div>
 
         <p className="mb-2">
-          <span className="font-semibold">ระยะเวลา:</span> {formatDate(project?.startDate)} - {formatDate(project?.endDate)}
+          <span className="font-semibold">ระยะเวลา:</span> {formatDate(projectidData?.startDate)} - {formatDate(projectidData?.endDate)}
         </p>
         <p className="mb-4">
           <span className="font-semibold">รวม:</span> {project?.totalDays} วัน
@@ -239,11 +242,14 @@ export default function ProjectDetail() {
             const today = dayjs();
             const start = dayjs(t.start);
             const end = dayjs(t.end);
-
             let bgColor = "bg-purple-50 border-purple-100";
             if (projectEnd && end.isAfter(projectEnd, "day")) bgColor = "bg-red-100 border-red-300";
             else if (today.isAfter(end, "day")) bgColor = "bg-green-100 border-green-300";
-
+            console.log("roleData",roleData)
+            console.log("today",today)
+            console.log("start",start)
+            console.log("end",end)
+            console.log("projectEnd",projectEnd)
             return (
               <li
                 key={i}
@@ -318,7 +324,7 @@ export default function ProjectDetail() {
                           className="flex flex-col items-center justify-center text-[10px] py-1 px-2 rounded-full shadow-md cursor-pointer hover:scale-105 transition h-7 text-center"
                           title={md.label || md.name || name}
                         >
-                        
+
                           <span className="truncate">{md.label || md.name || name}</span>
                         </div>
                       );

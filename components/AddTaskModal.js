@@ -270,7 +270,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-7xl rounded-xl shadow-lg p-6">
+      <div className="bg-white w-full max-w-4xl rounded-xl shadow-lg p-6">
         <h2 className="text-2xl font-bold text-purple-600 mb-4">
           {editData ? "✏ แก้ไขงาน" : "➕ เพิ่มงาน"}
         </h2>
@@ -360,7 +360,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
             {loadingMaps ? (
               <div className="text-gray-500 text-sm">กำลังโหลดสมาชิก...</div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {memberMap.map((m, i) => {
                   const idStr = asIdStr(idOf(m));
                   const label = labelOf(m);
