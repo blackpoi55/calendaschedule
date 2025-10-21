@@ -105,7 +105,7 @@ export default function Nav() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <div className="mx-auto w-full px-4 sm:px-6">
         {/* แถบบน */}
         <div className="h-14 flex items-center justify-between gap-3">
           {/* ซ้าย: burger + brand */}
