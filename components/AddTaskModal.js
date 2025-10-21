@@ -89,6 +89,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
   // load initial values
   useEffect(() => {
     if (editData) {
+      console.log("editData:", editData);
       const start = editData.start || today.format("YYYY-MM-DD");
       const end = editData.end || today.format("YYYY-MM-DD");
       const calcDays = dayjs(end).diff(dayjs(start), "day") + 1;
@@ -102,7 +103,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
         days: toStr(editData.days ?? Math.max(calcDays, 1)),
         start,
         end,
-        member: Array.isArray(editData.member) ? editData.member : [],
+        member: Array.isArray(editData.members) ? editData.members : [],
         remark: editData.remark || "",
         description: editData.description || "",
       }));

@@ -29,14 +29,15 @@ const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
   }));
 
   // ✅ Map Tasks → Events (end ต้องบวก 1 วัน เพราะ react-big-calendar ไม่รวมวัน end)
+  console.log("tasks:", tasks);
   const events = tasks.map((t, idx) => ({
     id: idx,
-    title: `${t.role} (${t.days} วัน)`,
+    title: `${t.name} (${t.days} วัน)`,
     start: dayjs.tz(t.start, "Asia/Bangkok").toDate(),
     end: dayjs.tz(t.end, "Asia/Bangkok").add(1, "day").toDate(), // ✅ บวก 1 วัน
     allDay: true, 
-    role: t.role || "",
-    remark: t.remark || "",
+    role: t.name || "",
+    remark: t.description || "",
     originalTask: t,
   }));
 
