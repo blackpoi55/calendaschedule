@@ -408,7 +408,7 @@ export default function Home() {
                             <button
                               key={m.id}
                               type="button"
-                              onClick={() => setMemberFilter(m.name)}
+                              // onClick={() => setMemberFilter(m.name)}
                               className="group flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition shadow-sm"
                               title={`${m.name}${m.role ? ` • ${m.role}` : ""}`}
                             >

@@ -111,7 +111,7 @@ export default function ProjectDetail() {
   const handleSaveTask = async (task) => {
     let res;
     const { id: taskId, ...taskData } = task;
-    if (taskId) res = await edittask(taskId, taskData);
+    if (taskId) res = await edittask(task);
     else res = await createTask(taskData);
 
     if (!res?.error) {
@@ -289,38 +289,43 @@ export default function ProjectDetail() {
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-600 mb-1">
+                <p onClick={() => console.log(t)} className="text-sm text-gray-600 mb-1">
                   {formatDate(t.start)} ➝ {formatDate(t.end)}
                 </p>
 
                 {/* 👥 สมาชิก (ใช้ memberMap จาก API) */}
-                {Array.isArray(t.member) && t.member.length > 0 && (
+                {Array.isArray(t.members) && t.members.length > 0 && (
                   <div className="flex flex-wrap gap-3 mt-2">
-                    {t.member.map((m, idx) => {
-                      const md = getMemberDetail(m);
-                      if (!md) return null;
+                    {t.members.map((m) => {
+                      // รองรับสมาชิกที่มาเป็น object หรือเป็น id ตรง ๆ
+                      const id = typeof m === 'object' ? (m.id ?? m) : m;
+                      const name = typeof m === 'object' ? (m.name ?? String(m)) : String(m);
+
+                      // ถ้า getMemberDetail ต้องการ id ให้ส่ง id เข้าไป
+                      const md = getMemberDetail?.(id) ?? {
+                        // fallback ถ้าหา detail ไม่เจอ
+                        label: name,
+                        name,
+                        color: '#BF4EC2',     // slate-900
+                        textcolor: '#ffffff', // white
+                        image: null,
+                      };
+
                       return (
                         <div
-                          key={idx}
-                          style={{
-                            backgroundColor: md.color || "black",
-                            color: md.textcolor || "white",
-                          }}
-                          className="flex flex-col items-center justify-center text-xs p-2 rounded-full shadow-md cursor-pointer hover:scale-105 transition w-12 h-12 text-center"
-                          title={md.label || md.name}
+                          key={id} // ใช้ id ให้เสถียรกว่า idx
+                          style={{ backgroundColor: md.color || 'black', color: md.textcolor || 'white' }}
+                          className="flex flex-col items-center justify-center text-[10px] py-1 px-2 rounded-full shadow-md cursor-pointer hover:scale-105 transition h-7 text-center"
+                          title={md.label || md.name || name}
                         >
-                          {md.image && (
-                            <span
-                              className="w-3 h-3 mb-1"
-                              dangerouslySetInnerHTML={{ __html: md.image }}
-                            />
-                          )}
-                          <span className="truncate">{md.label || md.name}</span>
+                        
+                          <span className="truncate">{md.label || md.name || name}</span>
                         </div>
                       );
                     })}
                   </div>
                 )}
+
 
                 {/* 📝 หมายเหตุ */}
                 {t.remark && t.remark.trim() !== "" && (

@@ -10,7 +10,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
   const [data, setData] = useState({
     id: undefined,
     name: "",
-    roleId: "",         // ✅ เก็บ role เป็น id
+    roleId: 0,         // ✅ เก็บ role เป็น id
     roleLabel: "",      // ใช้โชว์/ค้นหา
     description: "",
     days: "4",
@@ -96,8 +96,8 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
 
       setData((prev) => ({
         ...prev,
-        id: editData.id,
-        project_id: editData.project_id,                   // ✅ รับมาจาก API
+        id: editData.id?parseInt(editData.id):undefined,
+        project_id: editData.projectId,                   // ✅ รับมาจาก API
         name: editData.name || "",
         // role จะ map เป็น id/label หลังจาก roleMap มาแล้ว (อีก useEffect ด้านล่าง)
         days: toStr(editData.days ?? Math.max(calcDays, 1)),
@@ -212,7 +212,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
       ...(id ? { id } : {}),
       ...(project_id ? { project_id: parseInt(project_id) } : {}),   // ✅ แนบ project_id มาให้ด้วยถ้ามี (สำคัญตอน edit)
       name: name,
-      role: roleId ? (Number.isNaN(Number(roleId)) ? roleId : Number(roleId)) : "", // ✅ ส่ง role เป็น id
+      role: roleId ? (Number.isNaN(Number(roleId)) ? roleId : Number(roleId)) : 0, // ✅ ส่ง role เป็น id
       description,
       days: calcDays,
       start: startDate.format("YYYY-MM-DD"),

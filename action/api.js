@@ -70,8 +70,8 @@ export const deleteproject = (id) => {
     return DELETE("/tm_project/" + id)
 }
 
-export const edittask = (id, data) => {
-    return PUT("/projectTask/" + id, data)
+export const edittask = (data) => {
+    return PUT("/tm_project/update/Task" , data)
 }
 export const addtask = (data) => {
     return POST("/projectTask", data)
