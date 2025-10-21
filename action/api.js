@@ -82,7 +82,9 @@ export const createTask = (data) => {
 export const deletetask = (id) => {
     return DELETE("/projectTask/" + id)
 }
-
+export const getbyProjectGattId = (id) => { 
+    return GET("/tm_project/getbyProjectGattId/" + id) 
+} 
 export async function registerApi({ username, password, email }) {
     return POST('/api/auth_web/register', { username, password, email });
 }
