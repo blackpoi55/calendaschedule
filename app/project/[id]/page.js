@@ -470,12 +470,12 @@ export default function ProjectDetail() {
                 {/* 👥 สมาชิก (API ใหม่: t.members = [{id,name}]) */}
                 {Array.isArray(t.members) && t.members.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {t.members.map((m) => {
+                    {t.members.map((m,i) => {
                       const md = getMemberDetail(m);
                       const key = typeof m === "object" ? (m.id ?? m.name) : m;
                       return (
                         <div
-                          key={key}
+                          key={i}
                           title={md.label || md.name}
                           style={{
                             backgroundColor: md.color || "#64748b",

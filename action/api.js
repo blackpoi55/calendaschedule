@@ -5,7 +5,7 @@ export const getmember = () => {
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const getmemberbyteam = (data) => {
-    return GET("/team/"+data)
+    return GET("/team/" + data)
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const editmember = (id, data) => {
@@ -71,7 +71,7 @@ export const deleteproject = (id) => {
 }
 
 export const edittask = (data) => {
-    return PUT("/tm_project/update/Task" , data)
+    return PUT("/tm_project/update/Task", data)
 }
 export const addtask = (data) => {
     return POST("/projectTask", data)
@@ -82,9 +82,9 @@ export const createTask = (data) => {
 export const deletetask = (id) => {
     return DELETE("/projectTask/" + id)
 }
-export const getbyProjectGattId = (id) => { 
-    return GET("/tm_project/getbyProjectGattId/" + id) 
-} 
+export const getbyProjectGattId = (id) => {
+    return GET("/tm_project/getbyProjectGattId/" + id)
+}
 export async function registerApi({ username, password, email }) {
     return POST('/api/auth_web/register', { username, password, email });
 }

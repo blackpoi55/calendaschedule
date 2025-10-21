@@ -1206,6 +1206,7 @@ export default function BoardPage() {
       <AddColumnModal open={openAddColumn} onClose={() => setOpenAddColumn(false)} onCreate={createColumn} />
 
       <AddCardModal
+        key={openAddCardFor ? `add-${openAddCardFor}` : 'closed'}
         open={!!openAddCardFor}
         onClose={() => setOpenAddCardFor(null)}
         onCreate={createCard}
