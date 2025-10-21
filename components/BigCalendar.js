@@ -12,14 +12,43 @@ dayjs.extend(timezone);
 
 const localizer = dayjsLocalizer(dayjs);
 
-const getRoleColor = (roleName) => {
-  const role = roleOptions.find((r) => r.label == roleName);
-  console.log("roleOptions", roleOptions)
-  console.log(roleName)
-  return role ? role.color : "#6b21a8"; // Default ม่วง
-};
+/** หา role color จาก roleMap (ถ้ามี) หรือ roleOptions (mock) */
+function resolveRoleColor({ roleValue, roleMap, fallback = "#6b21a8" }) {
+  // 1) ถ้ามี roleMap (จาก API จริง) ให้หาตาม id/name/label ก่อน
+  if (Array.isArray(roleMap) && roleMap.length) {
+    // เทียบด้วย id (เลข/สตริง)
+    const byId =
+      roleMap.find((r) => String(r.id) === String(roleValue)) ||
+      roleMap.find((r) => String(r.value ?? r.id) === String(roleValue));
+    if (byId?.color) return byId.color;
 
-const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
+    // เทียบด้วย name/label
+    const valLower = String(roleValue ?? "").trim().toLowerCase();
+    const byName = roleMap.find((r) => {
+      const name = String(r.name ?? r.label ?? "").trim().toLowerCase();
+      return name && (name === valLower);
+    });
+    if (byName?.color) return byName.color;
+
+    // ไม่มีสีใน roleMap แต่เจอ role → อนุญาตคืนสี default เดียวกันทั้งโปรเจกต์
+    if (byId || byName) return fallback;
+  }
+
+  // 2) ถ้าไม่มี roleMap ให้ fallback ไปที่ mock roleOptions เดิม
+  const fromMock =
+    roleOptions.find(
+      (r) =>
+        String(r.id) === String(roleValue) ||
+        String(r.value ?? r.id) === String(roleValue) ||
+        String(r.label ?? r.name ?? "")
+          .trim()
+          .toLowerCase() === String(roleValue ?? "").trim().toLowerCase()
+    ) || null;
+
+  return fromMock?.color || fallback;
+}
+
+const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask, roleMap }, ref) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState("month");
 
@@ -31,14 +60,13 @@ const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
   }));
 
   // ✅ Map Tasks → Events (end ต้องบวก 1 วัน เพราะ react-big-calendar ไม่รวมวัน end)
-  console.log("tasks:", tasks);
-  const events = tasks.map((t, idx) => ({
-    id: idx,
-    title: `${t.name} (${t.days} วัน)`,
+  const events = (Array.isArray(tasks) ? tasks : []).map((t, idx) => ({
+    id: t.id ?? idx,
+    title: `${t.name ?? `Task #${t.id ?? idx}`} ${t?.days ? `(${t.days} วัน)` : ""}`.trim(),
     start: dayjs.tz(t.start, "Asia/Bangkok").toDate(),
     end: dayjs.tz(t.end, "Asia/Bangkok").add(1, "day").toDate(), // ✅ บวก 1 วัน
     allDay: true,
-    role: t.role || "",
+    role: t.role ?? "",               // อาจเป็นเลข (1,5) หรือสตริงชื่อบทบาท
     remark: t.description || "",
     originalTask: t,
   }));
@@ -106,27 +134,29 @@ const BigCalendar = forwardRef(({ tasks, onEditTask, onAddTask }, ref) => {
         onNavigate={(date) => setCurrentDate(date)}
         onView={(view) => setCurrentView(view)}
         style={{ height: "100%", borderRadius: "12px" }}
-        eventPropGetter={(event) => ({
-          style: {
-            background: `linear-gradient(135deg, ${getRoleColor(event.role)})`,
-            color: "white",
-            borderRadius: "10px",
-            padding: "4px 6px",
-            fontWeight: "600",
-            cursor: "pointer",
-            whiteSpace: "pre-line",
-          },
-        })}
+        eventPropGetter={(event) => {
+          const color = resolveRoleColor({ roleValue: event.role, roleMap });
+          return {
+            style: {
+              // ใช้ไล่เฉดสีเดียวกันสองสต็อป เพื่อคงลุค gradient เดิม
+              background: `linear-gradient(135deg, ${color} 0%, ${color} 100%)`,
+              color: "white",
+              borderRadius: "10px",
+              padding: "4px 6px",
+              fontWeight: "600",
+              cursor: "pointer",
+              whiteSpace: "pre-line",
+            },
+          };
+        }}
         onSelectEvent={(event) => {
-          if (onEditTask) onEditTask(event.originalTask);
+          onEditTask?.(event.originalTask);
         }}
         onSelectSlot={(slotInfo) => {
-          if (onAddTask) {
-            onAddTask({
-              start: dayjs(slotInfo.start).format("YYYY-MM-DD"),
-              end: dayjs(slotInfo.end).subtract(1, "day").format("YYYY-MM-DD"), // ✅ แก้ให้ตรงกับ task จริง
-            });
-          }
+          onAddTask?.({
+            start: dayjs(slotInfo.start).format("YYYY-MM-DD"),
+            end: dayjs(slotInfo.end).subtract(1, "day").format("YYYY-MM-DD"), // ✅ ให้ตรงกับ task จริง
+          });
         }}
       />
     </div>
