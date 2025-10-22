@@ -76,3 +76,37 @@ export const DELETE = (URL) => {
     return { error: err, message: err?.response?.data?.message || "" }
   });
 }
+export const UPLOAD = (URL, { files, fields = {}, fieldName = 'images', onProgress, signal } = {}, config = {}) => {
+  const Token = localStorage.getItem('Token');
+  const form = new FormData();
+
+  // ⬇️ สำคัญ: ถ้าเป็นหลายไฟล์ ให้ append ด้วย "images" ซ้ำ ๆ ตามสเปค API
+  if (Array.isArray(files)) {
+    files.forEach((f, i) => f && form.append(fieldName, f, f.name || `file_${i}`));
+  } else if (files) {
+    form.append(fieldName, files, files.name || 'file');
+  }
+
+  // แนบฟิลด์อื่น ๆ ถ้ามี
+  Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+
+  // อย่าตั้ง Content-Type เอง ปล่อยให้ browser ใส่ boundary
+  return axios({
+    method: 'POST',
+    url: `${API}${URL}`,
+    data: form,
+    headers: {
+      Authorization: 'Bearer ' + Token,
+      ...(config.headers || {}),
+    },
+    onUploadProgress: (e) => {
+      if (typeof onProgress === 'function' && e.total) {
+        onProgress(Math.round((e.loaded * 100) / e.total), e);
+      }
+    },
+    signal,
+    ...config,
+  })
+    .then(res => res.data)
+    .catch(err => ({ error: err, message: err?.response?.data?.message || '' }));
+};

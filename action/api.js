@@ -1,4 +1,4 @@
-import { GET, POST, DELETE, PUT } from "@/components/apicomponent/api";
+import { GET, POST, DELETE, PUT, UPLOAD } from "@/components/apicomponent/api";
 
 export const getmember = () => {
     return GET("/users/byprojectId/1")
@@ -91,7 +91,56 @@ export async function registerApi({ username, password, email }) {
 
 export async function loginApi({ username, password }) {
     return POST('/api/auth_web/login', { username, password });
+} 
+// ยิงอัปโหลด และรีเทิร์นเฉพาะ URLs + ข้อมูลดิบ (message,data)
+export async function uploadfile(files, { fields = {}, onProgress, signal } = {}) {
+    // รองรับไฟล์เดียวหรือหลายไฟล์
+    const arr = Array.isArray(files) ? files : (files ? [files] : []);
+    if (arr.length === 0) {
+        return { error: new Error('No files provided'), message: 'กรุณาเลือกไฟล์อย่างน้อยหนึ่งไฟล์' };
+    }
+
+    const resp = await UPLOAD('/uploads/multiple', {
+        files: arr,
+        fieldName: 'images',       // ตามสเปค API: คีย์เดียวชื่อ images ซ้ำๆ
+        fields,
+        onProgress,
+        signal,
+    });
+
+    // ถ้า API ตอบ error ไว้ตามสัญญาเดิม
+    if (!resp || resp.error) return resp;
+
+    // ป้องกัน URL ซ้อน // เช่น .../api/v1//uploads/xxx.png
+    const normalizeUrl = (u) => {
+        try {
+            // ตัดให้เหลือ scheme://host + path ที่ไม่มี // กลาง path
+            const url = new URL(u);
+            url.pathname = url.pathname.replace(/\/{2,}/g, '/');
+            return url.toString();
+        } catch {
+            // ถ้าไม่ใช่ absolute URL ก็แก้เฉพาะ path
+            return String(u || '').replace(/\/{2,}/g, '/');
+        }
+    };
+
+    const rawItems = Array.isArray(resp?.data) ? resp.data : [];
+    const urls = rawItems
+        .map((it) => it?.url && normalizeUrl(it.url))
+        .filter(Boolean);
+
+    return {
+        ok: true,
+        message: resp?.message || 'Files uploaded',
+        urls,        // 👉 ได้ลิสต์ URL พร้อมใช้งาน
+        items: rawItems.map((it) => ({
+            ...it,
+            url: it?.url ? normalizeUrl(it.url) : it?.url,
+        })), // เผื่ออยากได้ filename/originalname/size
+    };
 }
+
+
 
 // ดึงโทเค็นจาก response ที่อาจใช้ชื่อแตกต่างกัน (token | accessToken | jwt | data.token)
 export function extractToken(resp) {

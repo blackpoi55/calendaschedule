@@ -17,7 +17,7 @@ import { API } from '@/config'
 // React Select
 import Select from 'react-select'
 import CreatableSelect from 'react-select/creatable'
-import { getmember, getrole } from '@/action/api'
+import { getmember, getrole, uploadfile } from '@/action/api'
 import { useParams } from 'next/navigation'
 
 // ===================== Refresh config =====================
@@ -68,74 +68,32 @@ const groupByStatus = (items, statuses) => {
 }
 
 // ========= Image helpers =========
-const IMG_MD_REGEX = /!\[[^\]]*?\]\((data:image\/[a-zA-Z]+;base64,[^)]+)\)/g
+// รองรับ Markdown image: ![alt](<url>) เลือกเฉพาะ data:image/* หรือ http/https
+const IMG_MD_ANY = /!\[[^\]]*?\]\(([^)]+)\)/g
 
 function stripImageMarkdown(note) {
   if (!note) return ''
-  return note.replace(IMG_MD_REGEX, '').replace(/\n{3,}/g, '\n\n').trim()
+  return note.replace(IMG_MD_ANY, '').replace(/\n{3,}/g, '\n\n').trim()
 }
-function extractAllImageDataUrls(note) {
+function extractAllImageUrls(note) {
   if (!note) return []
-  const arr = []
-  const re = new RegExp(IMG_MD_REGEX)
+  const out = []
+  const re = new RegExp(IMG_MD_ANY)
   let m
   while ((m = re.exec(note)) !== null) {
-    if (m[1]) arr.push(m[1])
+    const url = m[1]
+    if (!url) continue
+    if (/^data:image\//i.test(url) || /^https?:\/\//i.test(url)) out.push(url)
   }
-  return arr
+  return out
 }
-function assembleNote(text, images) {
+function assembleNote(text, imageUrls) {
   const body = (text || '').trim()
-  const imgLines = (images || []).map((url) => `![image](${url})`)
+  const imgLines = (imageUrls || []).map((u) => `![image](${u})`)
   return [body, imgLines.join('\n')].filter(Boolean).join('\n\n').trim()
 }
-function removeImage(images, dataUrl) {
-  return images.filter((u) => u !== dataUrl)
-}
-
-// --- compress image to base64 (JPEG by default) ---
-function loadImage(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = reject
-    img.src = dataUrl
-  })
-}
-async function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader()
-    fr.onload = () => resolve(String(fr.result || ''))
-    fr.onerror = reject
-    fr.readAsDataURL(file)
-  })
-}
-async function fileToCompressedDataURL(file, {
-  maxW = 1280,
-  maxH = 1280,
-  quality = 0.8,
-  mime = 'image/jpeg', // เลือก JPEG เพื่อลดขนาด
-} = {}) {
-  // 1) อ่านเป็น dataURL เดิม
-  const raw = await fileToDataURL(file)
-  // 2) โหลดรูป
-  const img = await loadImage(raw)
-  // 3) คำนวณขนาดใหม่แบบรักษาอัตราส่วน
-  let { width, height } = img
-  const scale = Math.min(maxW / width, maxH / height, 1)
-  const targetW = Math.round(width * scale)
-  const targetH = Math.round(height * scale)
-
-  // 4) วาดลง canvas
-  const canvas = document.createElement('canvas')
-  canvas.width = targetW
-  canvas.height = targetH
-  const ctx = canvas.getContext('2d')
-  ctx.drawImage(img, 0, 0, targetW, targetH)
-
-  // 5) แปลงเป็น dataURL ที่บีบอัดแล้ว
-  const out = canvas.toDataURL(mime, quality)
-  return out
+function removeImage(images, url) {
+  return (images || []).filter((u) => u !== url)
 }
 
 // ===== Status meta + fallback order =====
@@ -180,7 +138,7 @@ function adaptTasksFromApi(resp, allowedStatusKeys = []) {
       assignees: (r.assignees || []).map(x => ({ id: x?.id ?? null, name: x?.name ?? String(x) })).filter(x => x.name),
       assignee: (r.assignees && r.assignees[0]?.name) || null,
       due_date: r.due_date || null,
-      note: r.note || '',        // เก็บรูปเป็น Markdown image ใน note (แต่ UI จะไม่โชว์ base64 ใน textarea)
+      note: r.note || '',
       createdAt: safeNum(r.createdAt ?? r.updatedAt ?? Date.now(), Date.now()),
       updatedAt: safeNum(r.updatedAt ?? Date.now(), Date.now()),
     }
@@ -232,7 +190,7 @@ function ImageViewer({ src, onClose }) {
 
 // ========= Card =========
 function findFirstImageInNote(note) {
-  const imgs = extractAllImageDataUrls(note)
+  const imgs = extractAllImageUrls(note)
   return imgs[0] || null
 }
 function TaskCard({ task, onClick, dragDisabled, onOpenImage }) {
@@ -283,7 +241,6 @@ function TaskCard({ task, onClick, dragDisabled, onOpenImage }) {
         <span>👤 {assigneeText}</span>
         {task.due_date && <span className="text-right">📅 {new Date(task.due_date).toLocaleDateString('th-TH')}</span>}
       </div>
-      {/* แสดง preview ข้อความโน้ต (ไม่โชว์ base64 เพราะถูก strip ออก) */}
       {task.note ? <div className="mt-2 text-[11px] text-gray-500 line-clamp-2">📝 {stripImageMarkdown(task.note)}</div> : null}
     </div>
   )
@@ -478,27 +435,49 @@ function EditColumnModal({ open, onClose, column, onSave, onDelete, isDeletable 
   )
 }
 
-/** ------------------ Card Form (React Select + Image uploader, no base64 in textarea) ------------------ */
+/** ------------------ Card Form (อัปโหลดจริง + เก็บ URL) ------------------ */
 function CardFormRS({
   title, setTitle,
   assigneeOptions, assigneeValues, setAssigneeValues,
   labelOptions, labelValues, setLabelValues,
   due, setDue,
-  noteText, setNoteText,     // ✨ ข้อความโน้ต "ล้วน" (ไม่รวมรูป)
-  images, setImages,         // ✨ เก็บ dataURL ของรูป
-  onOpenImage
+  noteText, setNoteText,
+  imageUrls, setImageUrls,
+  onOpenImage,
+  onUploadingChange, // <= ใหม่: แจ้ง parent เมื่อกำลังอัปโหลด/เสร็จ
 }) {
+  const [progress, setProgress] = useState(0)
+  const [isUploading, setIsUploading] = useState(false)
+  const abortRef = useRef(null)
+
+  useEffect(() => { onUploadingChange?.(isUploading) }, [isUploading, onUploadingChange])
+
   const onFilesPick = async (files) => {
     if (!files || files.length === 0) return
     try {
-      const arr = Array.from(files)
-      const compressed = await Promise.all(
-        arr.map((f) => fileToCompressedDataURL(f, { maxW: 1280, maxH: 1280, quality: 0.8, mime: 'image/jpeg' }))
-      )
-      setImages([...(images || []), ...compressed])
+      setIsUploading(true)
+      setProgress(0)
+
+      const controller = new AbortController()
+      abortRef.current = controller
+
+      const res = await uploadfile(Array.from(files), {
+        fields: {},
+        onProgress: (p) => setProgress(p),
+        signal: controller.signal,
+      })
+
+      if (!res?.ok) throw new Error(res?.message || 'อัปโหลดไม่สำเร็จ')
+
+      setImageUrls([...(imageUrls || []), ...(res.urls || [])])
+      Swal.fire('สำเร็จ', `อัปโหลด ${res.urls?.length || 0} ไฟล์`, 'success')
     } catch (e) {
       console.error(e)
-      Swal.fire('ผิดพลาด', 'ไม่สามารถอ่าน/บีบอัดไฟล์รูปภาพได้', 'error')
+      Swal.fire('ผิดพลาด', e.message || 'ไม่สามารถอัปโหลดไฟล์ได้', 'error')
+    } finally {
+      setIsUploading(false)
+      setProgress(0)
+      abortRef.current = null
     }
   }
 
@@ -529,12 +508,12 @@ function CardFormRS({
         </div>
       </div>
 
-      {/* รูปภาพแนบ */}
+      {/* แนบรูปภาพ (อัปโหลดจริงทันที) */}
       <div>
         <label className="block text-sm font-semibold">รูปภาพที่แนบ</label>
         <div className="mt-2 flex items-center gap-2">
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm bg-white hover:bg-gray-50 shadow-sm">
-            <span>🖼️ เพิ่มรูป</span>
+            <span>🖼️ เลือกรูป</span>
             <input
               type="file"
               accept="image/*"
@@ -543,22 +522,40 @@ function CardFormRS({
               onChange={(e) => onFilesPick(e.target.files)}
             />
           </label>
-          <span className="text-xs text-gray-500">ไฟล์จะถูกย่อ & บีบอัดอัตโนมัติ แล้วเก็บเป็น base64 (ไม่แสดงในช่องโน้ต)</span>
+
+          {isUploading ? (
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-40 h-2 rounded bg-gray-200 overflow-hidden">
+                <div className="h-2 bg-blue-500" style={{ width: `${progress}%` }} />
+              </div>
+              <span>{progress}%</span>
+              <button
+                type="button"
+                className="px-2 py-1 text-xs rounded bg-rose-600 text-white"
+                onClick={() => abortRef.current?.abort()}
+              >
+                ยกเลิก
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-gray-500">ไฟล์จะถูกอัปโหลดขึ้นเซิร์ฟเวอร์ทันที แล้วแสดงเป็น URL</span>
+          )}
         </div>
 
-        {/* แกลเลอรี่รูป */}
-        {images && images.length > 0 ? (
+        {/* แกลเลอรี่จาก URL */}
+        {imageUrls?.length > 0 ? (
           <div className="mt-3 grid grid-cols-3 gap-3">
-            {images.map((src, idx) => (
+            {imageUrls.map((src, idx) => (
               <div key={idx} className="group relative">
                 <img
                   src={src}
                   className="h-24 w-full rounded-lg object-cover border cursor-zoom-in"
                   onClick={() => onOpenImage?.(src)}
+                  alt=""
                 />
                 <button
                   type="button"
-                  onClick={() => setImages(removeImage(images, src))}
+                  onClick={() => setImageUrls(removeImage(imageUrls, src))}
                   className="absolute top-1 right-1 hidden group-hover:inline-flex rounded-full bg-white/90 text-xs px-2 py-0.5 shadow"
                   title="ลบรูปนี้"
                 >ลบ</button>
@@ -577,7 +574,7 @@ function CardFormRS({
           onChange={e => setNoteText(e.target.value)}
           rows={4}
           className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-          placeholder={`พิมพ์รายละเอียดเพิ่มเติม...\n\n(รูปที่แนบจะไม่แสดงเป็นตัวหนังสือในช่องนี้)`}
+          placeholder={`พิมพ์รายละเอียดเพิ่มเติม...\n\n(รูปที่แนบจะถูกแทรกเป็น Markdown อัตโนมัติจาก URL)`}
         />
       </div>
     </div>
@@ -588,16 +585,16 @@ function CardFormRS({
 function AddCardModal({
   open, onClose, onCreate, defaultStatus,
   memberOptions, roleOptions,
-  onOpenImage
+  onOpenImage,
+  onUploadingChange, // <= ส่งต่อให้ CardFormRS
 }) {
   const [title, setTitle] = useState('งานใหม่')
   const [assignees, setAssignees] = useState([])
   const [labels, setLabels] = useState([])
   const [due, setDue] = useState('')
 
-  // ✨ จัดเก็บโน้ตแบบแยกข้อความ/รูป
   const [noteText, setNoteText] = useState('')
-  const [images, setImages] = useState([])
+  const [imageUrls, setImageUrls] = useState([])
 
   if (!open) return null
 
@@ -608,18 +605,19 @@ function AddCardModal({
       onSubmit={() => {
         const assArr = (assignees || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
         const labArr = (labels || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
-
-        const finalNote = assembleNote(noteText, images)
+        const finalNote = assembleNote(noteText, imageUrls)
 
         onCreate({
           title: title.trim() || 'งานใหม่',
           labels: labArr,
           due_date: due || undefined,
-          note: finalNote,          // ✅ ประกอบข้อความ + รูปเป็น Markdown (base64) ตอนบันทึก
+          note: finalNote,
           status: defaultStatus,
           assignees: assArr,
           assignee: assArr[0]?.name || null,
+          attachments: imageUrls,
         })
+        onClose()
       }}
       submitText="เพิ่มการ์ด"
     >
@@ -633,8 +631,9 @@ function AddCardModal({
         setLabelValues={setLabels}
         due={due} setDue={setDue}
         noteText={noteText} setNoteText={setNoteText}
-        images={images} setImages={setImages}
+        imageUrls={imageUrls} setImageUrls={setImageUrls}
         onOpenImage={onOpenImage}
+        onUploadingChange={onUploadingChange}
       />
     </ModalShell>
   )
@@ -644,16 +643,16 @@ function AddCardModal({
 function EditCardModal({
   open, onClose, task, onSave, onDelete,
   memberOptions, roleOptions,
-  onOpenImage
+  onOpenImage,
+  onUploadingChange, // <= ส่งต่อให้ CardFormRS
 }) {
   const [title, setTitle] = useState(task?.title || '')
   const [assignees, setAssignees] = useState([])
   const [labels, setLabels] = useState([])
   const [due, setDue] = useState(task?.due_date || '')
 
-  // ✨ แตก note เดิมออกเป็นข้อความ/รูป
   const [noteText, setNoteText] = useState(stripImageMarkdown(task?.note || ''))
-  const [images, setImages] = useState(extractAllImageDataUrls(task?.note || ''))
+  const [imageUrls, setImageUrls] = useState(extractAllImageUrls(task?.note || ''))
 
   const toOptions = (objs, pool) => {
     const byId = new Map((pool || []).map(o => [o.value?.id ?? o.value, o]))
@@ -670,10 +669,8 @@ function EditCardModal({
     setAssignees(toOptions(task?.assignees || (task?.assignee ? [{ id: null, name: task.assignee }] : []), memberOptions))
     setLabels(toOptions(task?.labels || [], roleOptions))
     setDue(task?.due_date || '')
-
-    // sync note เมื่อ task เปลี่ยน
     setNoteText(stripImageMarkdown(task?.note || ''))
-    setImages(extractAllImageDataUrls(task?.note || ''))
+    setImageUrls(extractAllImageUrls(task?.note || ''))
   }, [task, memberOptions, roleOptions])
 
   if (!open || !task) return null
@@ -685,17 +682,17 @@ function EditCardModal({
       onSubmit={() => {
         const assArr = (assignees || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
         const labArr = (labels || []).map(o => ({ id: o.value?.id ?? null, name: o.value?.name ?? o.label }))
-
-        const finalNote = assembleNote(noteText, images)
+        const finalNote = assembleNote(noteText, imageUrls)
 
         onSave({
           title: title.trim() || 'งานใหม่',
           labels: labArr,
           due_date: due || undefined,
-          note: finalNote,           // ✅ บันทึกเป็น Markdown + base64 ที่ถูกย่อแล้ว
+          note: finalNote,
           assignees: assArr,
           assignee: assArr[0]?.name || null,
         })
+        onClose()
       }}
       submitText="บันทึก"
       extraLeft={
@@ -714,8 +711,9 @@ function EditCardModal({
         setLabelValues={setLabels}
         due={due} setDue={setDue}
         noteText={noteText} setNoteText={setNoteText}
-        images={images} setImages={setImages}
+        imageUrls={imageUrls} setImageUrls={setImageUrls}
         onOpenImage={onOpenImage}
+        onUploadingChange={onUploadingChange}
       />
     </ModalShell>
   )
@@ -756,8 +754,16 @@ export default function BoardPage() {
 
   const AUTOSAVE_DELAY = 1200
   const TOAST_COOLDOWN = 5000
-
   const params = useParams()
+
+  // --- suspend refresh while editing/uploading ---
+  const [isAnyModalOpen, setIsAnyModalOpen] = useState(false)
+  const isUploadingRef = useRef(false)
+
+  useEffect(() => {
+    const open = !!openAddCardFor || !!editTaskId
+    setIsAnyModalOpen(open)
+  }, [openAddCardFor, editTaskId])
 
   // ---- Serialize board (stable) ----
   const serializeBoard = (statusesArg, itemsArg) => {
@@ -824,8 +830,9 @@ export default function BoardPage() {
     }
   }
 
-  // ---- Auto-save debounce ----
+  // ---- Auto-save debounce (พักระหว่างเปิดโมดัล/อัปโหลด) ----
   useEffect(() => {
+    if (isAnyModalOpen || isUploadingRef.current) return
     const s = serializeBoard(statuses, items)
     const isChanged = s !== baselineRef.current
     setIsDirty(isChanged)
@@ -835,7 +842,7 @@ export default function BoardPage() {
     }
     return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statuses, items])
+  }, [statuses, items, isAnyModalOpen])
 
   // Warn before unload
   useEffect(() => {
@@ -844,8 +851,9 @@ export default function BoardPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
-  // Load board data
+  // Load board data (พักถ้ามี modal/อัปโหลด)
   async function fetchTasks(projId = params.id) {
+    if (isAnyModalOpen || isUploadingRef.current) return
     try {
       setLoading(true); setError(null)
       const res = await fetch(`${API}/kanban/${projId}`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
@@ -888,20 +896,31 @@ export default function BoardPage() {
   // initial load
   useEffect(() => { fetchTasks(params.id) }, []) // eslint-disable-line
 
-  // refetch on focus
+  // refetch on focus (พักช่วง modal/อัปโหลด)
   useEffect(() => {
-    const onFocus = () => fetchTasks(projectId || params.id)
-    window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') onFocus() })
+    const onFocus = () => {
+      if (isAnyModalOpen || isUploadingRef.current) return
+      fetchTasks(projectId || params.id)
+    }
+    const visHandler = () => { if (document.visibilityState === 'visible') onFocus() }
+    window.addEventListener('visibilitychange', visHandler)
     window.addEventListener('focus', onFocus)
-    return () => { window.removeEventListener('focus', onFocus) }
-  }, [projectId]) // eslint-disable-line
+    return () => {
+      window.removeEventListener('visibilitychange', visHandler)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [projectId, isAnyModalOpen]) // eslint-disable-line
 
-  // polling
+  // polling (พักช่วง modal/อัปโหลด)
   useEffect(() => {
     if (!ENABLE_POLLING) return
-    const t = setInterval(() => { if (!isSavingRef.current) fetchTasks(projectId || params.id) }, REFRESH_INTERVAL_MS)
+    const t = setInterval(() => {
+      if (isSavingRef.current) return
+      if (isAnyModalOpen || isUploadingRef.current) return
+      fetchTasks(projectId || params.id)
+    }, REFRESH_INTERVAL_MS)
     return () => clearInterval(t)
-  }, [projectId]) // eslint-disable-line
+  }, [projectId, isAnyModalOpen]) // eslint-disable-line
 
   // ===== React-Select Options =====
   const roleOptions = useMemo(() => (roleMap || []).map(r => ({ value: { id: r.id ?? null, name: r.name }, label: r.name })), [roleMap])
@@ -1026,11 +1045,13 @@ export default function BoardPage() {
       assignees: (payload.assignees || []).map(x => ({ id: x.id ?? null, name: x.name })),
       assignee: payload.assignee || (payload.assignees?.[0]?.name ?? null),
       due_date: payload.due_date || null,
-      note: payload.note || '',   // note ถูกประกอบจาก modal แล้ว
+      note: payload.note || '',
       createdAt: now(), updatedAt: now()
     }
     setItems(prev => normalize([...prev, newTask], statuses))
     setOpenAddCardFor(null)
+    // sync หลังปิดโมดัล
+    setTimeout(() => fetchTasks(projectId || params.id), 350)
   }
 
   function openEditColumn(statusKey) { setEditColKey(statusKey) }
@@ -1057,10 +1078,13 @@ export default function BoardPage() {
       updatedAt: now()
     } : t))
     setEditTaskId(null)
+    // sync หลังปิดโมดัล
+    setTimeout(() => fetchTasks(projectId || params.id), 350)
   }
   function deleteTask() {
     setItems(prev => normalize(prev.filter(t => t.id !== editTaskId), statuses))
     setEditTaskId(null)
+    setTimeout(() => fetchTasks(projectId || params.id), 350)
   }
 
   // ---- Image Lightbox ----
@@ -1214,6 +1238,7 @@ export default function BoardPage() {
         memberOptions={memberOptions}
         roleOptions={roleOptions}
         onOpenImage={openImage}
+        onUploadingChange={(v) => { isUploadingRef.current = v }}
       />
 
       <EditColumnModal
@@ -1234,6 +1259,7 @@ export default function BoardPage() {
         memberOptions={memberOptions}
         roleOptions={roleOptions}
         onOpenImage={openImage}
+        onUploadingChange={(v) => { isUploadingRef.current = v }}
       />
     </div>
   )
