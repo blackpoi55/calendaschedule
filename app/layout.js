@@ -2,6 +2,7 @@ import { Sarabun } from 'next/font/google'
 import './globals.css'
 import '@wamra/gantt-task-react/dist/style.css'
 import ClientShell from '@/components/ClientShell'
+import ScreenshotTool from '@/components/ScreenshotTool/ScreenshotTool'
 
 const sarabun = Sarabun({
   weight: ['400', '700'],
@@ -18,6 +19,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={sarabun.className}>
         <ClientShell>
+          <ScreenshotTool />
           {children}
         </ClientShell>
       </body>
