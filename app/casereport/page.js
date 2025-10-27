@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { bucode, statusOptions, sortOptions, priorityOptions, projectOptions, devOptions, modulesOptions, typeOptions } from "../../config";
 import { useRouter } from 'next/navigation'
 import Swal from "sweetalert2";
-import * as XLSX from "xlsx";
+//import * as XLSX from "xlsx";
 //import { color } from "html2canvas/dist/types/css/types/color";
 // Type definition for each bug report case
 
@@ -217,28 +217,28 @@ function Page() {
     setSelectedDev(reordered.join(","));
   };
 
-  const exportExcel = () => {
-    // แปลงข้อมูลเป็น array ของ object สำหรับ export
-    const exportData = filteredCases.map((item, idx) => ({
-      "ลำดับ": idx + 1,
-      "วันที่แจ้ง": new Date(item.createdat).toLocaleString("th-TH"),
-      "ชื่อเคส": item.title,
-      "ผู้รายงาน": item.reporter,
-      "โมดูล": item.modules,
-      "ประเภทที่แจ้ง": item.type,
-      "หมายเหตุ (system)": item.s_remarks,
-      "หมายเหตุ (customer)": item.c_remarks,
-      "ผู้ดูแล": item.person,
-      "สถานะ": item.status,
-      "ความรุนแรง": item.priority,
-      "กำหนดวันแล้วเสร็จ": item.completion_date ? new Date(item.completion_date).toLocaleDateString("th-TH") : "",
-    }));
+  // const exportExcel = () => {
+  //   // แปลงข้อมูลเป็น array ของ object สำหรับ export
+  //   const exportData = filteredCases.map((item, idx) => ({
+  //     "ลำดับ": idx + 1,
+  //     "วันที่แจ้ง": new Date(item.createdat).toLocaleString("th-TH"),
+  //     "ชื่อเคส": item.title,
+  //     "ผู้รายงาน": item.reporter,
+  //     "โมดูล": item.modules,
+  //     "ประเภทที่แจ้ง": item.type,
+  //     "หมายเหตุ (system)": item.s_remarks,
+  //     "หมายเหตุ (customer)": item.c_remarks,
+  //     "ผู้ดูแล": item.person,
+  //     "สถานะ": item.status,
+  //     "ความรุนแรง": item.priority,
+  //     "กำหนดวันแล้วเสร็จ": item.completion_date ? new Date(item.completion_date).toLocaleDateString("th-TH") : "",
+  //   }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Cases");
-    XLSX.writeFile(wb, "casereport.xlsx");
-  }
+  //   const ws = XLSX.utils.json_to_sheet(exportData);
+  //   const wb = XLSX.utils.book_new();
+  //   XLSX.utils.book_append_sheet(wb, ws, "Cases");
+  //   XLSX.writeFile(wb, "casereport.xlsx");
+  // }
   return (
     <div className="flex flex-col gap-6 p-6 bg-gray-50 min-h-screen text-black">
       <div className="flex w-full items-center">
@@ -254,7 +254,7 @@ function Page() {
         <div className="w-1/3 flex justify-end items-center ">
           <button
             className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
-            onClick={exportExcel}
+            // onClick={exportExcel}
           >
             Export Excel
           </button>
