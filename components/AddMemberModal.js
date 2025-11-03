@@ -517,7 +517,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
                           //   N/A
                           // </div>
                           <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-purple-500 group-hover:scale-105 transition">
-                            {initials(r?.user?.name)}
+                            {initials(r?.user?.name||"")}
                           </span>
                         )}
                       </td>

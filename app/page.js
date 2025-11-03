@@ -150,7 +150,7 @@ export default function Home() {
 
   // อักษรย่อจากชื่อ เช่น "Est 3" -> "E3"
   const initials = (name = "") =>
-    name
+    name.toString()
       .trim()
       .split(/\s+/)
       .map(w => w[0])
@@ -387,10 +387,10 @@ export default function Home() {
                         <ul className="mt-1 text-xs list-disc pl-4 space-y-1">
                           {status.tasks.map((task, idx) => {
                             const [rolePart, memberPart] = task.split(" (");
-                            const roleData = roleMap.find((r) => r.name === rolePart.trim()); // ใช้ name จาก API
+                            const roleData = roleMap.find((r) => r.name === rolePart); // ใช้ name จาก API
                             return (
                               <li key={idx}>
-                                <span style={{ color: roleData?.color || "#555", fontWeight: 600 }}>{rolePart.trim()}</span>
+                                <span style={{ color: roleData?.color || "#555", fontWeight: 600 }}>{rolePart}</span>
                                 {memberPart && <span className="text-gray-700"> ({memberPart}</span>}
                               </li>
                             );
@@ -413,7 +413,7 @@ export default function Home() {
                               title={`${m.name}${m.role ? ` • ${m.role}` : ""}`}
                             >
                               <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-purple-500 group-hover:scale-105 transition">
-                                {initials(m.name)}
+                                {initials(m.name||"")}
                               </span>
                               {/* <span className="text-xs font-semibold truncate max-w-[140px]">{m.name}</span> */}
                               {m.role && (

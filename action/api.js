@@ -88,12 +88,12 @@ export const getbyProjectGattId = (id) => {
 export const getbyProjectDashboad = (id) => {
     return GET("/tm_project/getbyProjectDashboad/" + id)
 }
-export async function registerApi({ username, password, email }) {
-    return POST('/api/auth_web/register', { username, password, email });
+export async function registerApi(data) {
+    return POST('/api/auth_web/register', data);
 }
 
-export async function loginApi({ username, password }) {
-    return POST('/api/auth_web/login', { username, password });
+export async function loginApi(data) {
+    return POST('/api/auth_web/login', data);
 } 
 // ยิงอัปโหลด และรีเทิร์นเฉพาะ URLs + ข้อมูลดิบ (message,data)
 export async function uploadfile(files, { fields = {}, onProgress, signal } = {}) {
