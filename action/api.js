@@ -1,7 +1,7 @@
 import { GET, POST, DELETE, PUT, UPLOAD } from "@/components/apicomponent/api";
 
-export const getmember = () => {
-    return GET("/users/byprojectId/1")
+export const getmember = (id) => {
+    return GET("/users/byprojectId/"+id)
     //เส้นนี้ขอ id ในส่นของ task เพิ่มมา ที details แต่ละ array
 }
 export const getmemberbyteam = (data) => {

@@ -878,7 +878,7 @@ export default function BoardPage() {
 
       const role = await getrole()
       setroleMap(role?.data || [])
-      const member = await getmember()
+      const member = await getmember(projId)
       setmemberMap(member?.data || [])
 
       baselineRef.current = serializeBoard(nextStatuses, normalized)
