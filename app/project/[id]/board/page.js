@@ -68,7 +68,7 @@ const groupByStatus = (items, statuses) => {
 }
 
 // ========= Image helpers =========
-// รองรับ Markdown image: ![alt](<url>) เลือกเฉพาะ data:image/* หรือ http/https
+// รองรับ Markdown image: ![alt](<url>)
 const IMG_MD_ANY = /!\[[^\]]*?\]\(([^)]+)\)/g
 
 function stripImageMarkdown(note) {
@@ -168,26 +168,224 @@ const rsStyles = {
 const colDragId = (key) => `col:${key}`
 const parseColId = (id) => (typeof id === 'string' && id.startsWith('col:')) ? id.slice(4) : null
 
-// ========= ImageViewer (Lightbox) =========
-function ImageViewer({ src, onClose }) {
-  if (!src) return null
+// ========= ImageViewer (Zoom/Pan) — no conditional returns, stable hooks =========
+function ImageViewer({ images = [], startIndex = 0, onClose }) {
+  const [idx, setIdx] = React.useState(0)
+  const [scale, setScale] = React.useState(1)
+  const [tx, setTx] = React.useState(0)
+  const [ty, setTy] = React.useState(0)
+  const [panning, setPanning] = React.useState(false)
+
+  const startRef = React.useRef({ x: 0, y: 0, tx: 0, ty: 0 })
+  const touchRef = React.useRef({ x: 0, dist: 0, mode: 'tap' })
+  const wrapRef = React.useRef(null)
+
+  // 2) CONST / MEMO
+  const MIN = 0.5, MAX = 6, STEP = 0.25
+  const hasImages = Array.isArray(images) && images.length > 0
+  const clampedIdx = hasImages ? Math.min(Math.max(idx, 0), images.length - 1) : 0
+  const src = hasImages ? images[clampedIdx] : ''
+
+  const filename = React.useMemo(() => {
+    if (!src) return 'image'
+    try { return new URL(src).pathname.split('/').pop() || 'image' } catch { return 'image' }
+  }, [src])
+
+  React.useEffect(() => {
+    if (!hasImages) return
+    const n = images.length
+    const next = ((startIndex % n) + n) % n
+    setIdx(next)
+    setScale(1); setTx(0); setTy(0)
+  }, [hasImages, images, startIndex])
+
+  // 4) CALLBACKS (useCallback เพื่อความคงที่)
+  const resetView = React.useCallback(() => { setScale(1); setTx(0); setTy(0) }, [])
+  const setAt = React.useCallback((i) => {
+    if (!hasImages) return
+    const n = images.length
+    setIdx(((i % n) + n) % n); resetView()
+  }, [hasImages, images.length, resetView])
+
+  const go = React.useCallback((d) => {
+    if (!hasImages) return
+    setIdx(v => {
+      const n = images.length
+      return (v + d + n) % n
+    })
+    resetView()
+  }, [hasImages, images.length, resetView])
+
+  const zoomIn = React.useCallback(() => setScale(s => Math.min(MAX, s + STEP)), [])
+  const zoomOut = React.useCallback(() => setScale(s => Math.max(MIN, s - STEP)), [])
+  const onDoubleClick = React.useCallback(() => {
+    setScale(s => (s > 1 ? 1 : Math.min(2, MAX))); setTx(0); setTy(0)
+  }, [])
+
+  const copyLink = React.useCallback(async () => {
+    if (!src) return
+    try { await navigator.clipboard.writeText(src) } catch { }
+  }, [src])
+
+  const downloadImage = React.useCallback(() => {
+    if (!src) return
+    const a = document.createElement('a'); a.href = src; a.download = filename; document.body.appendChild(a); a.click(); a.remove()
+  }, [src, filename])
+
+  // 5) POINTER HANDLERS
+  const onMouseDown = React.useCallback((e) => {
+    if (scale <= 1) return
+    setPanning(true)
+    startRef.current = { x: e.clientX, y: e.clientY, tx, ty }
+  }, [scale, tx, ty])
+
+  const onMouseMove = React.useCallback((e) => {
+    if (!panning) return
+    const dx = e.clientX - startRef.current.x
+    const dy = e.clientY - startRef.current.y
+    setTx(startRef.current.tx + dx)
+    setTy(startRef.current.ty + dy)
+  }, [panning])
+
+  const endPan = React.useCallback(() => { setPanning(false) }, [])
+
+  const onWheel = React.useCallback((e) => {
+    e.preventDefault()
+    const delta = -Math.sign(e.deltaY) * STEP
+    setScale(s => Math.min(MAX, Math.max(MIN, s + delta)))
+  }, [])
+
+  const dist2 = React.useCallback((t1, t2) => Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY), [])
+
+  const onTouchStart = React.useCallback((e) => {
+    if (e.touches.length === 1) {
+      touchRef.current = { x: e.touches[0].clientX, dist: 0, mode: 'swipe' }
+    } else if (e.touches.length === 2) {
+      touchRef.current = { ...touchRef.current, dist: dist2(e.touches[0], e.touches[1]), mode: 'pinch' }
+    }
+  }, [dist2])
+
+  const onTouchMove = React.useCallback((e) => {
+    if (touchRef.current.mode === 'pinch' && e.touches.length === 2) {
+      const d = dist2(e.touches[0], e.touches[1])
+      const diff = (d - touchRef.current.dist) / 200
+      setScale(s => Math.min(MAX, Math.max(MIN, s + diff)))
+      touchRef.current.dist = d
+    }
+  }, [dist2])
+
+  const onTouchEnd = React.useCallback((e) => {
+    if (touchRef.current.mode === 'swipe' && e.changedTouches?.[0]) {
+      const dx = e.changedTouches[0].clientX - touchRef.current.x
+      if (Math.abs(dx) > 40) go(dx < 0 ? +1 : -1)
+    }
+    touchRef.current.mode = 'tap'
+  }, [go])
+
+  // 6) KEYBOARD
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose?.()
+      if (e.key === 'ArrowRight') go(+1)
+      if (e.key === 'ArrowLeft') go(-1)
+      if (e.key === '+') zoomIn()
+      if (e.key === '-') zoomOut()
+      if (e.key.toLowerCase?.() === 'r') resetView()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [go, zoomIn, zoomOut, resetView, onClose])
+
+  // 7) RENDER — ไม่ return null; ถ้าไม่มีรูป ซ่อน overlay ทั้งก้อน
   return (
-    <>
-      <div className="fixed inset-0 z-[100] bg-black/70" onClick={onClose} />
-      <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-        <div className="relative max-h-[90vh] max-w-[90vw]">
-          <img src={src} alt="preview" className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl object-contain" />
-          <button
-            onClick={onClose}
-            className="absolute -top-3 -right-3 rounded-full bg-white/90 px-3 py-1.5 text-sm shadow"
-            title="ปิด"
-          >✕</button>
+    <div
+      className={`${hasImages ? '' : 'hidden pointer-events-none'} fixed inset-0 z-[110]`}
+      aria-hidden={!hasImages}
+    >
+      {/* backdrop */}
+      <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      {/* stage */}
+      <div
+        ref={wrapRef}
+        className="fixed inset-0 z-[110] flex items-center justify-center p-4 select-none"
+        onWheel={onWheel}
+        onMouseMove={onMouseMove}
+        onMouseUp={endPan}
+        onMouseLeave={endPan}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* top info */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-white/10 text-white backdrop-blur px-3 py-1.5">
+          <span className="text-xs">{clampedIdx + 1} / {images.length}</span>
+          <span className="text-white/60 text-xs">•</span>
+          <span className="text-xs max-w-[40vw] truncate">{filename}</span>
         </div>
+
+        {/* right controls */}
+        <div className="absolute top-4 right-4 flex gap-2">
+          <button onClick={zoomOut} title="Zoom out" className="rounded-full bg-white/90 hover:bg-white px-3 py-1.5 text-sm shadow">−</button>
+          <button onClick={zoomIn} title="Zoom in" className="rounded-full bg-white/90 hover:bg-white px-3 py-1.5 text-sm shadow">+</button>
+          <button onClick={resetView} title="Reset" className="rounded-full bg-white/90 hover:bg-white px-3 py-1.5 text-sm shadow">⟲</button>
+          <button onClick={copyLink} title="คัดลอกลิงก์" className="rounded-full bg-white/90 hover:bg-white px-3 py-1.5 text-sm shadow">🔗</button>
+          <button onClick={downloadImage} title="ดาวน์โหลด" className="rounded-full bg-white/90 hover:bg-white px-3 py-1.5 text-sm shadow">⬇️</button>
+          <button onClick={onClose} title="ปิด" className="rounded-full bg-white/90 hover:bg-white px-3 py-1.5 text-sm shadow">✕</button>
+        </div>
+
+        {/* arrows */}
+        <button onClick={() => go(-1)} className="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 rounded-full bg-white/90 hover:bg-white px-3 py-2 text-lg shadow" title="ก่อนหน้า">‹</button>
+        <button onClick={() => go(+1)} className="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 rounded-full bg-white/90 hover:bg-white px-3 py-2 text-lg shadow" title="ถัดไป">›</button>
+
+        {/* image */}
+        <div className="relative max-h-[88vh] max-w-[92vw] overflow-hidden rounded-xl">
+          {src ? (
+            <img
+              src={src}
+              alt="preview"
+              draggable={false}
+              onDoubleClick={onDoubleClick}
+              onMouseDown={onMouseDown}
+              className="shadow-2xl cursor-grab active:cursor-grabbing"
+              style={{
+                transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+                transformOrigin: 'center center',
+                maxHeight: '88vh',
+                maxWidth: '92vw',
+                objectFit: 'contain',
+                transition: panning ? 'none' : 'transform 120ms ease-out'
+              }}
+            />
+          ) : (
+            <div className="h-[60vh] w-[60vw] flex items-center justify-center text-white/70">No image</div>
+          )}
+        </div>
+
+        {/* filmstrip */}
+        {hasImages && images.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[92vw] max-w-[960px]">
+            <div className="mx-auto rounded-xl bg-black/30 backdrop-blur px-3 py-2">
+              <div className="flex gap-2 overflow-x-auto scrollbar-thin">
+                {images.map((u, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setAt(i)}
+                    className={`relative h-14 aspect-[4/3] rounded-lg overflow-hidden border ${i === clampedIdx ? 'border-white ring-2 ring-white' : 'border-white/30'}`}
+                    title={`รูปที่ ${i + 1}`}
+                  >
+                    <img src={u} className="h-full w-full object-cover" />
+                    {i === clampedIdx && <div className="absolute inset-0 ring-2 ring-white/70 rounded-lg pointer-events-none" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </>
+    </div>
   )
 }
-
+ 
 // ========= Card =========
 function findFirstImageInNote(note) {
   const imgs = extractAllImageUrls(note)
@@ -201,7 +399,8 @@ function TaskCard({ task, onClick, dragDisabled, onOpenImage }) {
   const assigneeText = Array.isArray(task.assignees) && task.assignees.length
     ? task.assignees.map(a => a.name).join(', ')
     : '-'
-  const thumb = useMemo(() => findFirstImageInNote(task.note), [task.note])
+  const imgs = useMemo(() => extractAllImageUrls(task.note), [task.note])
+  const thumb = imgs[0] || null
 
   return (
     <div
@@ -232,7 +431,7 @@ function TaskCard({ task, onClick, dragDisabled, onOpenImage }) {
             src={thumb}
             alt="thumb"
             className="w-full max-h-32 rounded-lg object-cover border cursor-zoom-in"
-            onClick={(e) => { e.stopPropagation(); onOpenImage?.(thumb) }}
+            onClick={(e) => { e.stopPropagation(); onOpenImage?.(imgs, 0) }}
           />
         </div>
       ) : null}
@@ -444,7 +643,7 @@ function CardFormRS({
   noteText, setNoteText,
   imageUrls, setImageUrls,
   onOpenImage,
-  onUploadingChange, // <= ใหม่: แจ้ง parent เมื่อกำลังอัปโหลด/เสร็จ
+  onUploadingChange,
 }) {
   const [progress, setProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
@@ -508,7 +707,7 @@ function CardFormRS({
         </div>
       </div>
 
-      {/* แนบรูปภาพ (อัปโหลดจริงทันที) */}
+      {/* แนบรูปภาพ */}
       <div>
         <label className="block text-sm font-semibold">รูปภาพที่แนบ</label>
         <div className="mt-2 flex items-center gap-2">
@@ -542,7 +741,6 @@ function CardFormRS({
           )}
         </div>
 
-        {/* แกลเลอรี่จาก URL */}
         {imageUrls?.length > 0 ? (
           <div className="mt-3 grid grid-cols-3 gap-3">
             {imageUrls.map((src, idx) => (
@@ -550,7 +748,7 @@ function CardFormRS({
                 <img
                   src={src}
                   className="h-24 w-full rounded-lg object-cover border cursor-zoom-in"
-                  onClick={() => onOpenImage?.(src)}
+                  onClick={() => onOpenImage?.(imageUrls, idx)}
                   alt=""
                 />
                 <button
@@ -586,7 +784,7 @@ function AddCardModal({
   open, onClose, onCreate, defaultStatus,
   memberOptions, roleOptions,
   onOpenImage,
-  onUploadingChange, // <= ส่งต่อให้ CardFormRS
+  onUploadingChange,
 }) {
   const [title, setTitle] = useState('งานใหม่')
   const [assignees, setAssignees] = useState([])
@@ -644,7 +842,7 @@ function EditCardModal({
   open, onClose, task, onSave, onDelete,
   memberOptions, roleOptions,
   onOpenImage,
-  onUploadingChange, // <= ส่งต่อให้ CardFormRS
+  onUploadingChange,
 }) {
   const [title, setTitle] = useState(task?.title || '')
   const [assignees, setAssignees] = useState([])
@@ -743,7 +941,7 @@ export default function BoardPage() {
 
   const nextTaskIdRef = useRef(1)
 
-  // ---- Dirty / Save state ----
+  // Dirty / Save state
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSavedAt, setLastSavedAt] = useState(null)
@@ -756,7 +954,7 @@ export default function BoardPage() {
   const TOAST_COOLDOWN = 5000
   const params = useParams()
 
-  // --- suspend refresh while editing/uploading ---
+  // suspend refresh while editing/uploading
   const [isAnyModalOpen, setIsAnyModalOpen] = useState(false)
   const isUploadingRef = useRef(false)
 
@@ -765,7 +963,7 @@ export default function BoardPage() {
     setIsAnyModalOpen(open)
   }, [openAddCardFor, editTaskId])
 
-  // ---- Serialize board (stable) ----
+  // Serialize
   const serializeBoard = (statusesArg, itemsArg) => {
     const normalized = normalize(itemsArg, statusesArg)
     const statuses = statusesArg.map((s, idx) => ({ key: s.key, label: s.label, theme: s.theme, icon: s.icon, order: idx }))
@@ -783,7 +981,7 @@ export default function BoardPage() {
     return JSON.stringify({ statuses, tasks })
   }
 
-  // ---- Save core ----
+  // Save
   const saveBoardCore = async (kind = 'auto') => {
     if (isSavingRef.current) return
     const serialized = serializeBoard(statuses, items)
@@ -830,7 +1028,7 @@ export default function BoardPage() {
     }
   }
 
-  // ---- Auto-save debounce (พักระหว่างเปิดโมดัล/อัปโหลด) ----
+  // Auto-save debounce
   useEffect(() => {
     if (isAnyModalOpen || isUploadingRef.current) return
     const s = serializeBoard(statuses, items)
@@ -851,7 +1049,7 @@ export default function BoardPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
-  // Load board data (พักถ้ามี modal/อัปโหลด)
+  // Load board data
   async function fetchTasks(projId = params.id) {
     if (isAnyModalOpen || isUploadingRef.current) return
     try {
@@ -896,7 +1094,7 @@ export default function BoardPage() {
   // initial load
   useEffect(() => { fetchTasks(params.id) }, []) // eslint-disable-line
 
-  // refetch on focus (พักช่วง modal/อัปโหลด)
+  // refetch on focus
   useEffect(() => {
     const onFocus = () => {
       if (isAnyModalOpen || isUploadingRef.current) return
@@ -911,7 +1109,7 @@ export default function BoardPage() {
     }
   }, [projectId, isAnyModalOpen]) // eslint-disable-line
 
-  // polling (พักช่วง modal/อัปโหลด)
+  // polling
   useEffect(() => {
     if (!ENABLE_POLLING) return
     const t = setInterval(() => {
@@ -922,7 +1120,7 @@ export default function BoardPage() {
     return () => clearInterval(t)
   }, [projectId, isAnyModalOpen]) // eslint-disable-line
 
-  // ===== React-Select Options =====
+  // React-Select Options
   const roleOptions = useMemo(() => (roleMap || []).map(r => ({ value: { id: r.id ?? null, name: r.name }, label: r.name })), [roleMap])
   const memberOptions = useMemo(() => (memberMap || []).map(m => ({ value: { id: m.user.id ?? null, name: m.user.name }, label: m.user.name })), [memberMap])
 
@@ -1050,7 +1248,6 @@ export default function BoardPage() {
     }
     setItems(prev => normalize([...prev, newTask], statuses))
     setOpenAddCardFor(null)
-    // sync หลังปิดโมดัล
     setTimeout(() => fetchTasks(projectId || params.id), 350)
   }
 
@@ -1078,7 +1275,6 @@ export default function BoardPage() {
       updatedAt: now()
     } : t))
     setEditTaskId(null)
-    // sync หลังปิดโมดัล
     setTimeout(() => fetchTasks(projectId || params.id), 350)
   }
   function deleteTask() {
@@ -1087,10 +1283,10 @@ export default function BoardPage() {
     setTimeout(() => fetchTasks(projectId || params.id), 350)
   }
 
-  // ---- Image Lightbox ----
-  const [viewerSrc, setViewerSrc] = useState(null)
-  const openImage = (src) => setViewerSrc(src)
-  const closeImage = () => setViewerSrc(null)
+  // ---- Image Lightbox (multi-image) ----
+  const [viewer, setViewer] = useState(null) // { images: string[], index: number }
+  const openImage = (images, index = 0) => setViewer({ images, index })
+  const closeImage = () => setViewer(null)
 
   // ---- Manual save ----
   const onManualSave = () => saveBoardCore('manual')
@@ -1098,7 +1294,7 @@ export default function BoardPage() {
   return (
     <div className="mx-auto min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Lightbox for images */}
-      <ImageViewer src={viewerSrc} onClose={closeImage} />
+      <ImageViewer images={viewer?.images || []} startIndex={viewer?.index || 0} onClose={closeImage} />
 
       <header className="sticky top-0 z-20 border-b bg-white/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
