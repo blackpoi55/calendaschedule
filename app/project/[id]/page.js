@@ -463,6 +463,9 @@ export default function ProjectDetail() {
                   </div>
                 </div>
 
+                <p className="text-sm text-gray-700 mb-1">
+                  {t.description}
+                </p>
                 <p className="text-sm text-gray-600 mb-1">
                   {formatDate(t.start)} ➝ {formatDate(t.end)}
                 </p>
@@ -470,7 +473,7 @@ export default function ProjectDetail() {
                 {/* 👥 สมาชิก (API ใหม่: t.members = [{id,name}]) */}
                 {Array.isArray(t.members) && t.members.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {t.members.map((m,i) => {
+                    {t.members.map((m, i) => {
                       const md = getMemberDetail(m);
                       const key = typeof m === "object" ? (m.id ?? m.name) : m;
                       return (

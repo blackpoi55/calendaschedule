@@ -478,25 +478,29 @@ export default function Home() {
                       </button>
 
                       {/* Edit */}
-                      <button
-                        onClick={() => {
-                          setEditProject(p);
-                          setOpenModal(true);
-                        }}
-                        className="w-10 h-10 flex items-center justify-center text-white bg-yellow-400 rounded-full hover:bg-yellow-500 transition"
-                        title="แก้ไข"
-                      >
-                        <PencilSquareIcon className="w-5 h-5" />
-                      </button>
+                      {(userdata?.id === p.ownerId || userdata?.id === p.OwnerId) && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditProject(p);
+                              setOpenModal(true);
+                            }}
+                            className="w-10 h-10 flex items-center justify-center text-white bg-yellow-400 rounded-full hover:bg-yellow-500 transition"
+                            title="แก้ไข"
+                          >
+                            <PencilSquareIcon className="w-5 h-5" />
+                          </button>
 
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleDelete(p.id)}
-                        className="w-10 h-10 flex items-center justify-center text-white bg-red-500 rounded-full hover:bg-red-600 transition"
-                        title="ลบ"
-                      >
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
+                          {/* Delete */}
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="w-10 h-10 flex items-center justify-center text-white bg-red-500 rounded-full hover:bg-red-600 transition"
+                            title="ลบ"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );

@@ -267,17 +267,23 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
     return svg;
   }
 
+  const [isVisible, setIsVisible] = useState(false);
+  useEffect(() => {
+    // Trigger animation after mount
+    requestAnimationFrame(() => setIsVisible(true));
+  }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-4xl rounded-xl shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-purple-600 mb-4">
+    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`}>
+      <div className={`bg-white w-full max-w-4xl rounded-xl shadow-lg flex flex-col max-h-[90vh] overflow-hidden transform transition-all duration-300 ${isVisible ? "scale-100 translate-y-0" : "scale-95 translate-y-4"}`}>
+        <div className="p-4 md:p-6 overflow-y-auto">
+        <h2 className="text-xl md:text-2xl font-bold text-purple-600 mb-4">
           {editData ? "✏ แก้ไขงาน" : "➕ เพิ่มงาน"}
         </h2>
 
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           {/* ชื่อ Task */}
-          <div>
+          <div className="md:col-span-8">
             <p className="font-semibold mb-2">ชื่อ Task</p>
             <input
               type="text"
@@ -289,7 +295,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
           </div>
 
           {/* ตำแหน่ง (role) */}
-          <div className="relative">
+          <div className="relative md:col-span-4">
             <p className="font-semibold mb-2">ตำแหน่ง (ถ้ามี)</p>
             <input
               type="text"
@@ -328,34 +334,41 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
             )}
           </div>
 
-          {/* จำนวนวัน */}
-          <input
-            type="number"
-            placeholder="จำนวนวัน"
-            className="w-full p-3 border rounded-lg focus:ring focus:ring-purple-300"
-            value={data.days}
-            onChange={(e) => handleChange("days", e.target.value)}
-            min={1}
-          />
+          
 
           {/* วันที่เริ่ม - สิ้นสุด */}
-          <div className="flex gap-3">
+          <div className="md:col-span-9">
+            <p className="font-semibold mb-2">ระยะเวลา (เริ่ม - สิ้นสุด)</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="date"
+                className="flex-1 p-3 border rounded-lg focus:ring focus:ring-purple-300"
+                value={data.start}
+                onChange={(e) => handleChange("start", e.target.value)}
+              />
+              <input
+                type="date"
+                className="flex-1 p-3 border rounded-lg focus:ring focus:ring-purple-300"
+                value={data.end}
+                onChange={(e) => handleChange("end", e.target.value)}
+              />
+            </div>
+          </div>
+          {/* จำนวนวัน */}
+          <div className="md:col-span-3">
+            <p className="font-semibold mb-2">จำนวนวัน</p>
             <input
-              type="date"
-              className="flex-1 p-3 border rounded-lg focus:ring focus:ring-purple-300"
-              value={data.start}
-              onChange={(e) => handleChange("start", e.target.value)}
-            />
-            <input
-              type="date"
-              className="flex-1 p-3 border rounded-lg focus:ring focus:ring-purple-300"
-              value={data.end}
-              onChange={(e) => handleChange("end", e.target.value)}
+              type="number"
+              placeholder="จำนวนวัน"
+              className="w-full p-3 border rounded-lg focus:ring focus:ring-purple-300"
+              value={data.days}
+              onChange={(e) => handleChange("days", e.target.value)}
+              min={1}
             />
           </div>
 
           {/* สมาชิก */}
-          <div>
+          <div className="md:col-span-12">
             <p className="font-semibold mb-2">สมาชิกในงาน</p>
             {loadingMaps ? (
               <div className="text-gray-500 text-sm">กำลังโหลดสมาชิก...</div>
@@ -391,7 +404,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
           </div>
 
           {/* รายละเอียดงาน */}
-          <div>
+          <div className="md:col-span-6">
             <p className="font-semibold mb-2">รายละเอียดงาน (Description)</p>
             <textarea
               placeholder="อธิบายรายละเอียดของงาน..."
@@ -403,7 +416,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
           </div>
 
           {/* หมายเหตุ */}
-          <div>
+          <div className="md:col-span-6">
             <p className="font-semibold mb-2">หมายเหตุ (Remark)</p>
             <textarea
               placeholder="เพิ่มหมายเหตุ..."
@@ -415,7 +428,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 mt-6">
+        <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
           <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
             ยกเลิก
           </button>
@@ -426,6 +439,7 @@ export default function AddTaskModal({ id, onClose, onSave, editData, preFillDat
           >
             บันทึก
           </button>
+        </div>
         </div>
       </div>
     </div>
