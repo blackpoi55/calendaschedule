@@ -161,7 +161,7 @@ export default function ProjectTimelinePage() {
 
     const series = [{ name: 'Tasks', data }]
     const options = {
-      chart: { type: 'rangeBar', height: 560, toolbar: { show: false }, foreColor: '#334155' },
+      chart: { type: 'rangeBar', height: 560, toolbar: { show: false }, foreColor: '#334155', fontFamily: 'Sarabun, sans-serif'}, // ✅ กำหนดฟอนต์ตรงนี้ },
       plotOptions: {
         bar: { horizontal: true, borderRadius: 10, barHeight: '65%', rangeBarGroupRows: false }
       },

@@ -12,10 +12,6 @@ import {
   editproject,
   getproJects,
   getrole,
-  addrole,
-  editrole,
-  deleterole,
-  getmember,
   getmemberbyteam,
   createTeam,
 } from "@/action/api";
@@ -56,23 +52,24 @@ export default function Home() {
 
   const refresh = async () => {
     const t = localStorage.getItem('auth_user')
+    if (!t) return; // ป้องกัน error หากไม่มี user login
     const auth_user = JSON.parse(t)
+    setuserdata(auth_user);
+
     const data = await getproJects(auth_user.id);
     if (data?.data && data?.data.length > 0) setProjects(data.data);
     else setProjects([]);
 
     const role = await getrole();
     setroleMap(role?.data || []);
-    // const member = await getmember();
-    //  console.log(members)
-    // setmemberMap(member?.data || []);
-    let user = localStorage.getItem("auth_user");
-    user = JSON.parse(user);
-    setuserdata(user);
-    const members = await getmemberbyteam(user.id);
-    console.log(members?.data?.members)
+
+    // ใช้ auth_user ที่ parse ไว้แล้ว ไม่ต้องดึงซ้ำ
+    let members = await getmemberbyteam(auth_user.id);
+    
     if (!members?.data?.members) {
-      let res = await createTeam({ name: user.email + "-team", ownerId: user.id })
+      await createTeam({ name: auth_user.email + "-team", ownerId: auth_user.id })
+      // ดึงข้อมูลใหม่ทันทีหลังจากสร้างทีม เพื่อให้ state อัปเดต
+      members = await getmemberbyteam(auth_user.id);
     }
     setmemberMap(members?.data?.members || []);
   };
@@ -150,7 +147,7 @@ export default function Home() {
 
   // อักษรย่อจากชื่อ เช่น "Est 3" -> "E3"
   const initials = (name = "") =>
-    name.toString()
+    (name || "").toString()
       .trim()
       .split(/\s+/)
       .map(w => w[0])
