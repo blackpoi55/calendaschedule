@@ -27,6 +27,7 @@ import {
   UserGroupIcon,
   PlusIcon,
   ExclamationCircleIcon,
+  UserCircleIcon,
 } from "@heroicons/react/24/solid";
 
 dayjs.extend(isBetween);
@@ -321,6 +322,14 @@ export default function Home() {
           {/* Manage & Add */}
           <div className="ml-auto flex gap-2">
             {/* <button
+              onClick={() => router.push("/profile")}
+              className="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-xl shadow-md flex items-center gap-2 transition"
+              title="โปรไฟล์"
+            >
+              <UserCircleIcon className="w-5 h-5 text-purple-500" />
+              <span className="hidden md:inline">Profile</span>
+            </button> */}
+            {/* <button
               onClick={() => setOpenRoleManage(true)}
               className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl shadow-md flex items-center gap-2 transition"
               title="จัดการตำแหน่ง (Role)"
@@ -435,7 +444,7 @@ export default function Home() {
                       {/* Task */}
                       <button
                         onClick={() => router.push(`/project/${p.id}`)}
-                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        className="w-10 h-10 flex items-center justify-center text-white bg-blue-500 rounded-full hover:bg-blue-600 transition"
                         title="Task"
                       >
                         <ClipboardDocumentListIcon className="w-5 h-5" />
@@ -444,7 +453,7 @@ export default function Home() {
                       {/* Board */}
                       <button
                         onClick={() => router.push(`/project/${p.id}/board`)}
-                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        className="w-10 h-10 flex items-center justify-center text-white bg-teal-500 rounded-full hover:bg-teal-600 transition"
                         title="Board"
                       >
                         <RectangleGroupIcon className="w-5 h-5" />
@@ -453,7 +462,7 @@ export default function Home() {
                       {/* Dashboard */}
                       <button
                         onClick={() => router.push(`/project/${p.id}/dashboard`)}
-                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        className="w-10 h-10 flex items-center justify-center text-white bg-indigo-500 rounded-full hover:bg-indigo-600 transition"
                         title="Dashboard"
                       >
                         <ChartBarIcon className="w-5 h-5" />
@@ -462,7 +471,7 @@ export default function Home() {
                       {/* Gantt */}
                       <button
                         onClick={() => router.push(`/project/${p.id}/gantt`)}
-                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        className="w-10 h-10 flex items-center justify-center text-white bg-orange-500 rounded-full hover:bg-orange-600 transition"
                         title="Gantt"
                       >
                         <CalendarDaysIcon className="w-5 h-5" />
@@ -471,7 +480,7 @@ export default function Home() {
                       {/* Issue */}
                       <button
                         onClick={() => router.push(`/project/${p.id}/issue`)}
-                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        className="w-10 h-10 flex items-center justify-center text-white bg-pink-500 rounded-full hover:bg-pink-600 transition"
                         title="Issue"
                       >
                         <ExclamationCircleIcon className="w-5 h-5" />

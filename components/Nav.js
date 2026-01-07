@@ -202,13 +202,13 @@ export default function Nav() {
                   >
                     โปรไฟล์ผู้ใช้
                   </Link>
-                  <Link
+                  {/* <Link
                     href="/account"
                     role="menuitem"
                     className="block rounded-lg px-3 py-2 text-sm hover:bg-gray-50"
                   >
                     บัญชี & ความปลอดภัย
-                  </Link>
+                  </Link> */}
                   <div className="my-2 h-px bg-gray-100" />
                   <button
                     onClick={handleLogout}
