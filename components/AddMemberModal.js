@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { addmember, addmemberteam, deletemember, deletememberteam, editmember } from "@/action/api";
+import { addmemberteam, deletememberteam, editmember } from "@/action/api";
 import Swal from "sweetalert2";
+import { PencilSquareIcon, TrashIcon, PlusIcon } from "@heroicons/react/24/solid";
 
 function AddMemberModal({ data = [], onClose, refresh }) {
   const [form, setForm] = useState({
@@ -15,6 +16,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
     showindropdown: true,
   });
   const [loading, setLoading] = useState(false);
+  const [isOpenForm, setIsOpenForm] = useState(false);
   const nameRef = useRef(null);
 
   // ค้นหาผู้ใช้จากระบบภายนอก
@@ -34,13 +36,8 @@ function AddMemberModal({ data = [], onClose, refresh }) {
       .slice(0, 2)
       .join("")
       .toUpperCase();
-  useEffect(() => {
-    console.log(data.length, data)
-  }, [])
-
 
   useEffect(() => {
-    nameRef.current?.focus();
     let user = localStorage.getItem("auth_user");
     if (user) setuserData(JSON.parse(user));
   }, []);
@@ -53,6 +50,12 @@ function AddMemberModal({ data = [], onClose, refresh }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    if (isOpenForm) {
+      setTimeout(() => nameRef.current?.focus(), 100);
+    }
+  }, [isOpenForm]);
+
   const resetForm = useCallback(() => {
     setForm({
       id: null,
@@ -64,7 +67,6 @@ function AddMemberModal({ data = [], onClose, refresh }) {
       description: "",
       showindropdown: true,
     });
-    nameRef.current?.focus();
   }, []);
 
   const validateSvg = (svg) => {
@@ -150,7 +152,6 @@ function AddMemberModal({ data = [], onClose, refresh }) {
 
     setLoading(true);
     try {
-      console.log(data[0])
       const payload = {
         teamId: data[0].teamId,
         userId: u.id ?? u.userId ?? u._id,
@@ -171,7 +172,8 @@ function AddMemberModal({ data = [], onClose, refresh }) {
       refresh?.();
 
       // โฟกัสกลับช่องชื่อ (ต่อ flow เดิมให้ลื่น)
-      nameRef.current?.focus();
+      setIsOpenForm(false);
+      resetForm();
     } catch (e) {
       console.error("Add member by pickUser failed:", e);
       Swal.fire("เกิดข้อผิดพลาด", "ไม่สามารถเพิ่มสมาชิกได้", "error");
@@ -211,29 +213,11 @@ function AddMemberModal({ data = [], onClose, refresh }) {
     setLoading(true);
     try {
       const payload = {
-        // name: form.name.trim(),
-        // email: (form.email || "").trim(),
-        // image: form.image || "",
-        // color: form.color || "#000000",
-        // textcolor: form.textcolor || "#ffffff",
-        // description: form.description || "",
-        // showindropdown: !!form.showindropdown,
-        // teamId: 1,
         teamId: userData.id,
-        userId: form.id
-        , roleInProject: "member"
+        userId: form.id,
+        roleInProject: "member"
       };
 
-      //  if (form.id == null) {
-      //     await addmemberteam(payload);
-      //     Swal.fire({
-      //       title: "สำเร็จ",
-      //       text: "เพิ่ม Member ใหม่แล้ว",
-      //       icon: "success",
-      //       timer: 1500,
-      //       showConfirmButton: false,
-      //     });
-      //   } else {
       await editmember(form.id, payload);
       Swal.fire({
         title: "สำเร็จ",
@@ -242,8 +226,8 @@ function AddMemberModal({ data = [], onClose, refresh }) {
         timer: 1500,
         showConfirmButton: false,
       });
-      // }
       refresh?.();
+      setIsOpenForm(false);
       resetForm();
     } catch (error) {
       console.error("Error saving member:", error);
@@ -267,7 +251,6 @@ function AddMemberModal({ data = [], onClose, refresh }) {
 
     setLoading(true);
     try {
-      // const res = await deletemember(member.id); 
       let payload = {
         teamId: userData.id,
         userId: member.id
@@ -310,7 +293,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-indigo-100 to-purple-100">
-          <h3 className="text-lg font-semibold" onClick={() => console.log(userData)}>จัดการสมาชิก (Member)</h3>
+          <h3 className="text-lg font-semibold">จัดการสมาชิก (Member)</h3>
           <button
             onClick={onClose}
             className="px-3 py-1 rounded-lg text-white bg-red-500 hover:bg-red-400"
@@ -321,166 +304,18 @@ function AddMemberModal({ data = [], onClose, refresh }) {
 
         {/* Body */}
         <div className="p-6 space-y-4">
-          {/* Search from external system */}
-          <div className="rounded-xl border p-4 bg-gray-50">
-            <div className="mb-2 font-semibold">ค้นหาและเพิ่มผู้ใช้จากระบบ (TaxTrail)</div>
-            <div className="relative">
-              <input
-                className="w-full border rounded-lg p-2 pr-28"
-                placeholder="พิมพ์ชื่อ หรืออีเมล เพื่อค้นหา…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={onSearchKeyDown}
-              />
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                {searching ? "กำลังค้นหา…" : results.length ? `${results.length} รายการ` : ""}
-              </div>
-              {results.length > 0 && (
-                <div className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border bg-white shadow-lg">
-                  {results.map((u, i) => {
-                    const primary = u.name || u.fullName || u.username || "-";
-                    const mail = u.email || "";
-                    return (
-                      <button
-                        key={`${u.id ?? primary}-${i}`}
-                        onClick={() => pickUser(u)}
-                        className={`w-full text-left px-3 py-2 hover:bg-indigo-50 ${i === activeIdx ? "bg-indigo-50" : ""
-                          }`}
-                      >
-                        <div className="font-medium">{primary}</div>
-                        <div className="text-xs text-gray-600">{mail}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              * รองรับค้นหาด้วย <span className="font-medium">Email</span> หรือ{" "}
-              <span className="font-medium">Name</span> (อย่างน้อย 2 ตัวอักษร)
-            </p>
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                resetForm();
+                setIsOpenForm(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow"
+            >
+              <PlusIcon className="w-5 h-5" />
+              เพิ่มสมาชิก
+            </button>
           </div>
-
-          {/* Form */}
-          <form
-            className="grid grid-cols-1 md:grid-cols-8 gap-3 items-end"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!loading) saveClick();
-            }}
-          >
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium mb-1">ID</label>
-              <input
-                className="w-full border rounded-lg p-2 bg-gray-100 text-gray-600"
-                value={form.id ?? ""}
-                type="number"
-                onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
-                placeholder="-"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Name</label>
-              <input
-                ref={nameRef}
-                className="w-full border rounded-lg p-2"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="เช่น สมชาย, John Dev"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input
-                className="w-full border rounded-lg p-2"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="name@example.com"
-              />
-            </div>
-
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium mb-1">Color</label>
-              <input
-                type="color"
-                className="h-10 w-10 rounded-full"
-                value={form.color || "#000000"}
-                onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-              />
-            </div>
-
-            <div className="md:col-span-1">
-              <label className="block text-sm font-medium mb-1">Text Color</label>
-              <input
-                type="color"
-                className="h-10 w-10 rounded-full"
-                value={form.textcolor || "#ffffff"}
-                onChange={(e) => setForm((f) => ({ ...f, textcolor: e.target.value }))}
-              />
-            </div>
-
-            <div className="md:col-span-1 flex items-center gap-2">
-              <input
-                id="member-show"
-                type="checkbox"
-                checked={form.showindropdown}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, showindropdown: e.target.checked }))
-                }
-              />
-              <label htmlFor="member-show" className="text-sm">
-                Show
-              </label>
-            </div>
-
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium mb-1">
-                SVG (image){" "}
-                <span className="text-xs text-gray-500">
-                  — วางโค้ด &lt;svg ...&gt;...&lt;/svg&gt;
-                </span>
-              </label>
-              <textarea
-                className="w-full border rounded-lg p-2 h-28"
-                placeholder="<svg>...</svg>"
-                value={form.image}
-                onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
-              />
-            </div>
-
-            <div className="md:col-span-4">
-              <label className="block text-sm font-medium mb-1">Description</label>
-              <textarea
-                className="w-full border rounded-lg p-2 h-28"
-                placeholder="รายละเอียดเพิ่มเติมของสมาชิก"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-
-            <div className="md:col-span-8 flex gap-2 md:justify-end">
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-lg"
-              >
-                {loading ? "กำลังบันทึก..." : "บันทึก"}
-              </button>
-              {/* {form.id != null && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  disabled={loading}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg"
-                >
-                  ยกเลิกแก้ไข
-                </button>
-              )} */}
-            </div>
-          </form>
 
           {/* Table */}
           <div className="overflow-auto border rounded-xl max-h-[40vh]">
@@ -513,9 +348,6 @@ function AddMemberModal({ data = [], onClose, refresh }) {
                             dangerouslySetInnerHTML={{ __html: r.user.image }}
                           />
                         ) : (
-                          // <div className="w-10 h-10 rounded-full border flex items-center justify-center text-xs text-gray-500">
-                          //   N/A
-                          // </div>
                           <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-purple-500 group-hover:scale-105 transition">
                             {initials(r?.user?.name||"")}
                           </span>
@@ -548,7 +380,7 @@ function AddMemberModal({ data = [], onClose, refresh }) {
                       <td className="p-3 text-center">
                         <div className="flex justify-center gap-2">
                           <button
-                            onClick={() =>
+                            onClick={() => {
                               setForm({
                                 id: r?.user.id ?? null,
                                 name: r?.user.name ?? "",
@@ -558,19 +390,22 @@ function AddMemberModal({ data = [], onClose, refresh }) {
                                 textcolor,
                                 description: r?.user.description ?? "",
                                 showindropdown: show,
-                              })
-                            }
+                              });
+                              setIsOpenForm(true);
+                            }}
                             className="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-white rounded-lg disabled:opacity-60"
                             disabled={loading}
+                            title="แก้ไข"
                           >
-                            แก้ไข
+                            <PencilSquareIcon className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => deleteClick(r)}
                             className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg disabled:opacity-60"
                             disabled={loading}
+                            title="ลบ"
                           >
-                            ลบ
+                            <TrashIcon className="w-5 h-5" />
                           </button>
                         </div>
                       </td>
@@ -599,9 +434,185 @@ function AddMemberModal({ data = [], onClose, refresh }) {
           </div>
         </div>
       </div>
+
+      {/* Modal Form */}
+      {isOpenForm && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <h3 className="text-lg font-semibold">
+                {form.id ? "แก้ไขสมาชิก" : "เพิ่มสมาชิกใหม่"}
+              </h3>
+              <button
+                onClick={() => setIsOpenForm(false)}
+                className="text-gray-500 hover:text-red-500 text-2xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Search from external system (Only show when adding new) */}
+              {!form.id && (
+                <div className="rounded-xl border p-4 bg-blue-50 border-blue-100">
+                  <div className="mb-2 font-semibold text-blue-800">ค้นหาและเพิ่มผู้ใช้จากระบบ (TaxTrail)</div>
+                  <div className="relative">
+                    <input
+                      className="w-full border rounded-lg p-2 pr-28 focus:ring-2 focus:ring-blue-300 outline-none"
+                      placeholder="พิมพ์ชื่อ หรืออีเมล เพื่อค้นหา…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onKeyDown={onSearchKeyDown}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                      {searching ? "กำลังค้นหา…" : results.length ? `${results.length} รายการ` : ""}
+                    </div>
+                    {results.length > 0 && (
+                      <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto rounded-lg border bg-white shadow-lg">
+                        {results.map((u, i) => {
+                          const primary = u.name || u.fullName || u.username || "-";
+                          const mail = u.email || "";
+                          return (
+                            <button
+                              key={`${u.id ?? primary}-${i}`}
+                              onClick={() => pickUser(u)}
+                              className={`w-full text-left px-3 py-2 hover:bg-indigo-50 ${i === activeIdx ? "bg-indigo-50" : ""
+                                }`}
+                            >
+                              <div className="font-medium">{primary}</div>
+                              <div className="text-xs text-gray-600">{mail}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs text-blue-600">
+                    * คลิกเลือกเพื่อเพิ่มเข้าทีมทันที
+                  </p>
+                </div>
+              )}
+
+              {/* Form */}
+              <form
+                className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!loading) saveClick();
+                }}
+              >
+                <div className="md:col-span-2 border-b pb-2 mb-2 font-medium text-gray-700">
+                  ข้อมูลสมาชิก (แก้ไขเอง)
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Name</label>
+                  <input
+                    ref={nameRef}
+                    className="w-full border rounded-lg p-2"
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="เช่น สมชาย, John Dev"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <input
+                    className="w-full border rounded-lg p-2"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="name@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      className="h-10 w-10 rounded-full cursor-pointer border-0"
+                      value={form.color || "#000000"}
+                      onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                    />
+                    <span className="text-sm text-gray-500">{form.color}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Text Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      className="h-10 w-10 rounded-full cursor-pointer border-0"
+                      value={form.textcolor || "#ffffff"}
+                      onChange={(e) => setForm((f) => ({ ...f, textcolor: e.target.value }))}
+                    />
+                    <span className="text-sm text-gray-500">{form.textcolor}</span>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-1">
+                    SVG Avatar <span className="text-xs text-gray-400">(Optional)</span>
+                  </label>
+                  <textarea
+                    className="w-full border rounded-lg p-2 h-20 text-xs font-mono"
+                    placeholder="<svg>...</svg>"
+                    value={form.image}
+                    onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    className="w-full border rounded-lg p-2 h-20"
+                    placeholder="รายละเอียดเพิ่มเติม..."
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
+
+                <div className="md:col-span-2 flex items-center gap-2 mt-2">
+                  <input
+                    id="member-show-modal"
+                    type="checkbox"
+                    className="w-4 h-4"
+                    checked={form.showindropdown}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, showindropdown: e.target.checked }))
+                    }
+                  />
+                  <label htmlFor="member-show-modal" className="text-sm select-none cursor-pointer">
+                    แสดงใน Dropdown (Show)
+                  </label>
+                </div>
+
+                <div className="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setIsOpenForm(false)}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-lg shadow"
+                  >
+                    {loading ? "กำลังบันทึก..." : "บันทึก"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default AddMemberModal;
-

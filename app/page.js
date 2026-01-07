@@ -24,6 +24,9 @@ import {
   CalendarDaysIcon,
   PencilSquareIcon,
   TrashIcon,
+  UserGroupIcon,
+  PlusIcon,
+  ExclamationCircleIcon,
 } from "@heroicons/react/24/solid";
 
 dayjs.extend(isBetween);
@@ -317,19 +320,20 @@ export default function Home() {
 
           {/* Manage & Add */}
           <div className="ml-auto flex gap-2">
-            <button
+            {/* <button
               onClick={() => setOpenRoleManage(true)}
               className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl shadow-md flex items-center gap-2 transition"
               title="จัดการตำแหน่ง (Role)"
             >
               Role Manage
-            </button>
+            </button> */}
             <button
               onClick={() => setOpenMemberManage(true)}
               className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-xl shadow-md flex items-center gap-2 transition"
               title="จัดการสมาชิก (Member)"
             >
-              Member Manage
+              <UserGroupIcon className="w-5 h-5" />
+              Member Team
             </button>
             <button
               onClick={() => {
@@ -338,6 +342,7 @@ export default function Home() {
               }}
               className="px-6 py-2 bg-gradient-to-r from-purple-300 to-pink-400 text-white rounded-xl shadow-md hover:scale-105 transition flex items-center gap-2"
             >
+              <PlusIcon className="w-5 h-5" />
               เพิ่มโปรเจค
             </button>
           </div>
@@ -375,7 +380,9 @@ export default function Home() {
                     <td className="p-3 font-semibold">{p.description}</td>
                     <td className="p-3 text-center">{formatDate(p.startDate)}</td>
                     <td className="p-3 text-center">{formatDate(p.endDate)}</td>
-                    <td className="p-3 text-center">{p.totalDays} วัน</td>
+                    <td className="p-3 text-center">
+                      {dayjs(p.endDate).diff(dayjs(p.startDate), "day") + 1} วัน
+                    </td>
                     <td className="p-3 text-start">
                       <span className="px-3 py-1 rounded-full text-sm font-medium" style={{ backgroundColor: status.color, color: status.textColor }}>
                         {status.text}
@@ -459,6 +466,15 @@ export default function Home() {
                         title="Gantt"
                       >
                         <CalendarDaysIcon className="w-5 h-5" />
+                      </button>
+
+                      {/* Issue */}
+                      <button
+                        onClick={() => router.push(`/project/${p.id}/issue`)}
+                        className="w-10 h-10 flex items-center justify-center text-white bg-purple-500 rounded-full hover:bg-purple-600 transition"
+                        title="Issue"
+                      >
+                        <ExclamationCircleIcon className="w-5 h-5" />
                       </button>
 
                       {/* Edit */}

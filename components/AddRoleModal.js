@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { addrole, deleterole, editrole } from "@/action/api";
 import Swal from "sweetalert2";
+import { PencilSquareIcon, TrashIcon } from "@heroicons/react/24/solid";
 
 function AddRoleModal({ data = [], onClose, refresh }) {
   const [form, setForm] = useState({
@@ -248,15 +249,17 @@ function AddRoleModal({ data = [], onClose, refresh }) {
                           })}
                           className="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-white rounded-lg disabled:opacity-60"
                           disabled={loading}
+                          title="แก้ไข"
                         >
-                          แก้ไข
+                          <PencilSquareIcon className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => deleteClick(r)}
                           className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg disabled:opacity-60"
                           disabled={loading}
+                          title="ลบ"
                         >
-                          ลบ
+                          <TrashIcon className="w-5 h-5" />
                         </button>
                       </div>
                     </td>
