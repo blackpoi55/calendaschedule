@@ -92,6 +92,10 @@ export async function registerApi(data) {
     return POST('/api/auth_web/register', data);
 }
 
+export const edituser = (id,data) => {
+    return PUT("/users/"+id, data)
+}
+
 export async function loginApi(data) {
     return POST('/api/auth_web/login', data);
 } 

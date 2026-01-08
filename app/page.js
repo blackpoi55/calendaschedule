@@ -167,6 +167,8 @@ export default function Home() {
       name: pm.user?.name ?? "Unknown",
       email: pm.user?.email ?? "",
       role: pm.roleInProject ?? "",
+      image: pm.user?.image,
+      color: pm.user?.color,
     }));
   const getCurrentStatus = (project) => {
     const today = dayjs();
@@ -425,9 +427,17 @@ export default function Home() {
                               className="group flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 transition shadow-sm"
                               title={`${m.name}${m.role ? ` • ${m.role}` : ""}`}
                             >
-                              <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-purple-500 group-hover:scale-105 transition">
-                                {initials(m.name||"")}
-                              </span>
+                              {m.image ? (
+                                <div
+                                  className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center group-hover:scale-105 transition border border-gray-200"
+                                  style={{ backgroundColor: m.color || "#f3f4f6" }}
+                                  dangerouslySetInnerHTML={{ __html: m.image }}
+                                />
+                              ) : (
+                                <span className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white group-hover:scale-105 transition" style={{ backgroundColor: m.color || "#a855f7" }}>
+                                  {initials(m.name || "")}
+                                </span>
+                              )}
                               {/* <span className="text-xs font-semibold truncate max-w-[140px]">{m.name}</span> */}
                               {m.role && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-200 text-purple-800">
