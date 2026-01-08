@@ -326,19 +326,19 @@ export default function ProjectDetail() {
   /* ============================== Render ============================== */
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#fce4ec] to-[#ede7f6] p-6 gap-6">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#fce4ec] to-[#ede7f6] p-4 md:p-6 gap-6">
       {/* 📋 Project Info Panel */}
-      <div className="w-full md:w-1/3 bg-white rounded-xl shadow-xl p-6 flex flex-col">
-        <div className="flex items-center w-full">
-          <div className="flex w-1/2 justify-start items-center">
+      <div className="w-full lg:w-1/3 bg-white rounded-xl shadow-xl p-6 flex flex-col h-fit">
+        <div className="flex flex-col sm:flex-row items-center w-full gap-4 sm:gap-0 mb-4">
+          <div className="flex w-full sm:w-1/2 justify-start items-center">
             <h2
               onClick={() => router.push("/")}
-              className="text-2xl font-bold text-purple-600 mb-4 cursor-pointer flex items-center gap-2 hover:scale-105 hover:text-purple-800 transition"
+              className="text-2xl font-bold text-purple-600 cursor-pointer flex items-center gap-2 hover:scale-105 hover:text-purple-800 transition"
             >
               🔙 <span>{project?.name ?? "-"}</span>
             </h2>
           </div>
-          <div className="flex w-1/2 justify-end items-center">
+          <div className="flex w-full sm:w-1/2 justify-start sm:justify-end items-center">
             <button
               onClick={() => setModeChoose("Calendar")}
               className={cn(

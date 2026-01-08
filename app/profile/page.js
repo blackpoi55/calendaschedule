@@ -263,7 +263,7 @@ export default function ProfilePage() {
                       onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                     />
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-1">
                       <label className="text-sm font-semibold text-gray-600">สีธีม</label>
                       <input

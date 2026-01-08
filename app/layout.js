@@ -12,7 +12,14 @@ const sarabun = Sarabun({
 export const metadata = {
   title: 'H-Series Team',
   description: 'ระบบบริหารจัดการทีม',
+  manifest: "/manifest.json", // เชื่อมโยงไฟล์ manifest
 }
+export const viewport = {
+  themeColor: "#8b5cf6", // สีของแถบด้านบนในมือถือ (สีม่วงตามธีมแอป)
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
 
 export default function RootLayout({ children }) {
   return (

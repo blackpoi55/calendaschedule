@@ -28,6 +28,7 @@ import {
   PlusIcon,
   ExclamationCircleIcon,
   UserCircleIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/solid";
 
 dayjs.extend(isBetween);
@@ -42,6 +43,7 @@ export default function Home() {
   const [memberFilter, setMemberFilter] = useState("");
   const [overdueFilter, setOverdueFilter] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   // Manage Modals
   const [openRoleManage, setOpenRoleManage] = useState(false);
@@ -52,6 +54,15 @@ export default function Home() {
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   const refresh = async () => {
@@ -147,6 +158,15 @@ export default function Home() {
         }
       }
     });
+  };
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setDeferredPrompt(null);
+    }
   };
 
   // อักษรย่อจากชื่อ เช่น "Est 3" -> "E3"
@@ -270,25 +290,25 @@ export default function Home() {
   const formatDate = (date) => dayjs(date).format("DD/MM/YYYY");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#fce4ec] to-[#ede7f6] p-8">
-      <div className="max-w-9xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+    <div className="min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#fce4ec] to-[#ede7f6] p-4 md:p-8">
+      <div className="max-w-9xl mx-auto bg-white rounded-2xl shadow-lg p-4 md:p-6">
         {/* SEARCH & FILTER */}
-        <div className="flex flex-wrap gap-4 mb-6 items-end">
-          <div>
+        <div className="flex flex-col md:flex-row flex-wrap gap-4 mb-6 items-stretch md:items-end">
+          <div className="w-full md:w-auto">
             <label className="block text-sm font-semibold mb-1">ค้นหาโปรเจค</label>
             <input
               type="text"
               placeholder="🔍 ชื่อโปรเจค"
-              className="p-2 border rounded-lg focus:ring focus:ring-purple-300"
+              className="w-full md:w-64 p-2 border rounded-lg focus:ring focus:ring-purple-300"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
 
-          <div>
+          <div className="w-full md:w-auto">
             <label className="block text-sm font-semibold mb-1">สถานะ</label>
             <select
-              className="p-2 border rounded-lg w-48 focus:ring focus:ring-purple-300"
+              className="w-full md:w-48 p-2 border rounded-lg focus:ring focus:ring-purple-300"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -303,10 +323,10 @@ export default function Home() {
             </select>
           </div>
 
-          <div>
+          <div className="w-full md:w-auto">
             <label className="block text-sm font-semibold mb-1">สมาชิก</label>
             <select
-              className="p-2 border rounded-lg w-48 focus:ring focus:ring-purple-300"
+              className="w-full md:w-48 p-2 border rounded-lg focus:ring focus:ring-purple-300"
               value={memberFilter}
               onChange={(e) => setMemberFilter(e.target.value)}
             >
@@ -322,7 +342,7 @@ export default function Home() {
           </div>
 
           {/* Manage & Add */}
-          <div className="ml-auto flex gap-2">
+          <div className="md:ml-auto flex flex-wrap gap-2 mt-2 md:mt-0">
             {/* <button
               onClick={() => router.push("/profile")}
               className="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 rounded-xl shadow-md flex items-center gap-2 transition"
@@ -346,6 +366,16 @@ export default function Home() {
               <UserGroupIcon className="w-5 h-5" />
               Member Team
             </button>
+            {deferredPrompt && (
+              <button
+                onClick={handleInstallClick}
+                className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-xl shadow-md flex items-center gap-2 transition"
+                title="ติดตั้งแอปพลิเคชัน"
+              >
+                <ArrowDownTrayIcon className="w-5 h-5" />
+                Install
+              </button>
+            )}
             <button
               onClick={() => {
                 setEditProject(null);
@@ -360,7 +390,7 @@ export default function Home() {
         </div>
 
         {/* TABLE */}
-        <div className="overflow-y-auto max-h-[70vh] rounded-lg border">
+        <div className="overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10 bg-purple-100 text-purple-800">
               <tr>
