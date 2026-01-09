@@ -4,7 +4,7 @@ export const API = 'https://taxtrail.telecorpthailand.com/api/v1'
 
 
 export const bucode = "calendar"
-export const subpath = "/calendar"
+export const subpath = "/"
 export const statusOptions = [
     { label: "ทั้งหมด", value: "" },
     { label: "🟡 pending", value: "pending" },
