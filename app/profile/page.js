@@ -9,7 +9,8 @@ import {
   PencilSquareIcon,
   KeyIcon,
   CheckIcon,
-  XMarkIcon
+  XMarkIcon,
+  PaperAirplaneIcon
 } from "@heroicons/react/24/solid";
 import { edituser } from "@/action/api";
 
@@ -57,6 +58,8 @@ export default function ProfilePage() {
     color: "",
     textcolor: "",
     description: "",
+    notification_id: "",
+    notification_type: "discord",
   });
 
   // Change Password State
@@ -80,6 +83,8 @@ export default function ProfilePage() {
           color: u.color || "",
           textcolor: u.textcolor || "",
           description: u.description || "",
+          notification_id: u.notification_id || "",
+          notification_type: u.notification_type || "discord",
         });
       } catch (e) {
         router.push("/login");
@@ -125,6 +130,45 @@ export default function ProfilePage() {
     }
 
     return await response.data;
+  };
+
+  const handleTestNotification = async () => {
+    if (!formData.notification_id) {
+      Swal.fire("แจ้งเตือน", "กรุณากรอก Webhook URL ก่อนทำการทดสอบ", "warning");
+      return;
+    }
+
+    try {
+      const isDiscord = formData.notification_type === "discord";
+      const body = isDiscord
+        ? { content: "🔔 **Test Notification**\nนี่คือข้อความทดสอบจากระบบ Calenda Schedule" }
+        : {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0076D7",
+            "summary": "Test Notification",
+            "sections": [{
+                "activityTitle": "🔔 Test Notification",
+                "activitySubtitle": "Calenda Schedule",
+                "text": "นี่คือข้อความทดสอบจากระบบ Calenda Schedule"
+            }]
+          };
+
+      const res = await fetch(formData.notification_id, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        Swal.fire("สำเร็จ", "ส่งข้อความทดสอบเรียบร้อยแล้ว", "success");
+      } else {
+        Swal.fire("ล้มเหลว", `ไม่สามารถส่งข้อความได้ (Status: ${res.status})`, "error");
+      }
+    } catch (error) {
+      console.error(error);
+      Swal.fire("เกิดข้อผิดพลาด", "ตรวจสอบ URL หรือ CORS Policy", "error");
+    }
   };
 
   const handleSaveProfile = async (e) => {
@@ -229,6 +273,7 @@ export default function ProfilePage() {
                   </h2>
                   <p className="text-gray-500">{user.email}</p>
                   <p className="text-xs text-gray-400 mt-1">@{user.username || "username"}</p>
+                  {user.notification_id && <p className="text-xs text-gray-500 mt-1">{user.notification_type === 'msteams' ? 'MS Teams' : 'Discord'}: {user.notification_id}</p>}
                   {user.description && <p className="text-gray-600 mt-4 whitespace-pre-wrap">{user.description}</p>}
                 </div>
               ) : (
@@ -291,6 +336,51 @@ export default function ProfilePage() {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">ช่องทางการแจ้งเตือน</label>
+                    <div className="flex gap-4 mt-1 mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="notification_type"
+                          value="discord"
+                          checked={formData.notification_type === "discord"}
+                          onChange={(e) => setFormData({ ...formData, notification_type: e.target.value })}
+                          className="text-purple-600 focus:ring-purple-500"
+                        />
+                        <span className="text-sm text-gray-700">Discord</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="notification_type"
+                          value="msteams"
+                          checked={formData.notification_type === "msteams"}
+                          onChange={(e) => setFormData({ ...formData, notification_type: e.target.value })}
+                          className="text-purple-600 focus:ring-purple-500"
+                        />
+                        <span className="text-sm text-gray-700">MS Teams</span>
+                      </label>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        className="w-full border rounded-lg px-3 py-2 focus:ring focus:ring-purple-300"
+                        value={formData.notification_id}
+                        onChange={(e) => setFormData({ ...formData, notification_id: e.target.value })}
+                        placeholder={formData.notification_type === 'discord' ? 'Discord Webhook URL' : 'MS Teams Webhook URL'}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleTestNotification}
+                        className="px-3 py-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 flex items-center gap-2 transition"
+                        title="ทดสอบส่งข้อความ"
+                      >
+                        <PaperAirplaneIcon className="w-5 h-5" />
+                        <span className="hidden sm:inline">ทดสอบ</span>
+                      </button>
+                    </div>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 bg-gray-300 text-gray-600 rounded-lg hover:bg-gray-400 flex items-center gap-2">
