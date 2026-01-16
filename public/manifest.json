@@ -1,7 +1,7 @@
 {
-  "name": "Calenda Schedule",
-  "short_name": "Calenda",
-  "description": "Project Management Application",
+  "name": "H-Series Team",
+  "short_name": "H-Team",
+  "description": "ระบบบริหารจัดการทีม",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -16,12 +16,6 @@
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
     }
   ]
 }

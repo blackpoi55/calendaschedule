@@ -13,6 +13,11 @@ export const metadata = {
   title: 'H-Series Team',
   description: 'ระบบบริหารจัดการทีม',
   manifest: "/manifest.json", // เชื่อมโยงไฟล์ manifest
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "H-Series Team",
+  },
 }
 export const viewport = {
   themeColor: "#8b5cf6", // สีของแถบด้านบนในมือถือ (สีม่วงตามธีมแอป)
