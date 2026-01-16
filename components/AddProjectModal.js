@@ -9,6 +9,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
   // ====== Project form ======
   const [formData, setFormData] = useState({
     name: "",
+    description: "",
     startDate: today.format("YYYY-MM-DD"),
     endDate: today.add(7, "day").format("YYYY-MM-DD"),
     totalDays: 8,
@@ -81,6 +82,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
 
       setFormData({
         name: editData.name || "",
+        description: editData.description || "",
         startDate: start.format("YYYY-MM-DD"),
         endDate: end.format("YYYY-MM-DD"),
         totalDays: end.diff(start, "day") + 1,
@@ -166,7 +168,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
   const clearAll = () => setSelectedIds(new Set());
 
   const handleSave = () => {
-    const { name, startDate, endDate, totalDays, memberId } = formData;
+    const { name, description, startDate, endDate, totalDays, memberId } = formData;
 
     if (!name || !startDate || !endDate) {
       Swal.fire("ผิดพลาด", "กรุณากรอกข้อมูลให้ครบทุกช่อง!", "error");
@@ -195,6 +197,7 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
     const project = {
       id: editData ? editData.id : "",
       name,
+      description,
       startDate,
       endDate,
       totalDays,
@@ -226,6 +229,15 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
             className="w-full p-3 border rounded-lg focus:ring focus:ring-purple-300"
             value={formData.name}
             onChange={(e) => handleChange("name", e.target.value)}
+          />
+
+          {/* รายละเอียดโปรเจค */}
+          <textarea
+            placeholder="รายละเอียดโปรเจค"
+            className="w-full p-3 border rounded-lg focus:ring focus:ring-purple-300 resize-none"
+            rows={3}
+            value={formData.description}
+            onChange={(e) => handleChange("description", e.target.value)}
           />
 
           {/* วันที่ + จำนวนวัน */}
@@ -360,4 +372,3 @@ export default function AddProjectModal({ onClose, onSave, editData }) {
     </div>
   );
 }
-

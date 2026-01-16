@@ -4,10 +4,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
-  { href: '/',         label: 'แดชบอร์ด' },
-  { href: '/projects', label: 'โปรเจกต์' },
-  { href: '/reports',  label: 'รายงาน' },
+  { href: '/', label: 'แดชบอร์ด' },
+  // { href: '/projects', label: 'โปรเจกต์' },
+  
+  // { href: '/reports', label: 'รายงาน' },
+  { href: '/pricing', label: 'ราคาแพ็กเกจ' },
   { href: '/settings', label: 'ตั้งค่า', roles: ['admin'] }, // เฉพาะ admin
+
 ]
 
 // ===== utils =====
@@ -33,7 +36,7 @@ export default function Nav() {
   const [menuOpen, setMenuOpen] = useState(false)   // user dropdown
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
-  const [boot, setBoot]   = useState(false)         // บูตอ่าน localStorage ครั้งแรก
+  const [boot, setBoot] = useState(false)         // บูตอ่าน localStorage ครั้งแรก
 
   // โหลด token/user จาก localStorage
   useEffect(() => {
@@ -77,7 +80,7 @@ export default function Nav() {
 
   const onLoginPage = pathname === '/login' || pathname.startsWith('/login/')
   const expired = isExpired(token)
-  const authed  = !!token && !expired
+  const authed = !!token && !expired
 
   // เด้งไป /login ถ้าไม่ใช่หน้า /login และไม่ผ่าน auth (หลัง boot เสร็จ)
   useEffect(() => {

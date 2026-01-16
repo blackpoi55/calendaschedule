@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate PWA Icons</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f3f4f6; margin: 0; }
+        h1 { color: #333; margin-bottom: 10px; }
+        p { color: #666; margin-bottom: 20px; }
+        button { padding: 12px 24px; font-size: 16px; font-weight: bold; background: #8b5cf6; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3); }
+        button:hover { background: #7c3aed; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        canvas { border: 1px solid #ddd; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>PWA Icon Generator</h1>
+    <p>ตัวอย่างไอคอน (กดปุ่มเพื่อดาวน์โหลดทั้ง 2 ขนาด)</p>
+    
+    <!-- Canvas สำหรับแสดงตัวอย่าง -->
+    <canvas id="previewCanvas" width="192" height="192"></canvas>
+
+    <button onclick="downloadAll()">Download Icons (192 & 512)</button>
+
+    <script>
+        // ฟังก์ชันวาดไอคอนลง Canvas
+        function drawIcon(size) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // พื้นหลังสีม่วงตามธีม
+            ctx.fillStyle = '#8b5cf6';
+            ctx.fillRect(0, 0, size, size);
+            
+            // ตัวอักษร H สีขาว
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${size * 0.6}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('H', size/2, size/2 + (size * 0.05)); // ปรับตำแหน่งแกน Y เล็กน้อยให้ดูตรงกลาง
+            return canvas;
+        }
+
+        // แสดงตัวอย่างตอนเปิดเว็บ
+        const previewCanvas = document.getElementById('previewCanvas');
+        const ctx = previewCanvas.getContext('2d');
+        ctx.drawImage(drawIcon(192), 0, 0);
+
+        // ฟังก์ชันดาวน์โหลด
+        function downloadImage(size) {
+            const canvas = drawIcon(size);
+            const link = document.createElement('a');
+            link.download = `icon-${size}x${size}.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadAll() {
+            downloadImage(192);
+            setTimeout(() => downloadImage(512), 500); // หน่วงเวลาเล็กน้อยเพื่อให้ Browser ดาวน์โหลดทัน
+        }
+    </script>
+</body>
+</html>
