@@ -1,264 +1,146 @@
 'use client'
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { 
+  Bars3Icon, 
+  XMarkIcon, 
+  HomeIcon, 
+  ClipboardDocumentListIcon,
+  UserCircleIcon,
+  ArrowRightOnRectangleIcon
+} from '@heroicons/react/24/outline'
 
 const NAV_ITEMS = [
-  { href: '/', label: 'แดชบอร์ด' },
-  // { href: '/projects', label: 'โปรเจกต์' },
-  
-  // { href: '/reports', label: 'รายงาน' },
-  { href: '/pricing', label: 'ราคาแพ็กเกจ' },
-  { href: '/settings', label: 'ตั้งค่า', roles: ['admin'] }, // เฉพาะ admin
-
+  { href: '/', label: 'แดชบอร์ด', icon: HomeIcon },
+  { href: '/casereport', label: 'รายงานเคส', icon: ClipboardDocumentListIcon },
 ]
-
-// ===== utils =====
-function classNames(...s) { return s.filter(Boolean).join(' ') }
-function parseJwt(token) {
-  if (!token) return null
-  const parts = token.split('.')
-  if (parts.length !== 3) return null
-  try { return JSON.parse(atob(parts[1])) } catch { return null }
-}
-function isExpired(token) {
-  const payload = parseJwt(token)
-  if (!payload?.exp) return false
-  const now = Math.floor(Date.now() / 1000)
-  return payload.exp <= now
-}
 
 export default function Nav() {
   const pathname = usePathname()
-
-  // ---- Hooks (ลำดับต้องคงที่ทุกครั้ง) ----
-  const [open, setOpen] = useState(false)           // mobile drawer
-  const [menuOpen, setMenuOpen] = useState(false)   // user dropdown
+  const router = useRouter()
   const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
-  const [boot, setBoot] = useState(false)         // บูตอ่าน localStorage ครั้งแรก
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // โหลด token/user จาก localStorage
   useEffect(() => {
-    try {
-      const t = localStorage.getItem('auth_token')
-      const u = localStorage.getItem('auth_user')
-      setToken(t || null)
-      setUser(u ? JSON.parse(u) : null)
-    } finally {
-      setBoot(true)
-    }
+    const stored = localStorage.getItem('auth_user')
+    if (stored) setUser(JSON.parse(stored))
   }, [])
 
-  // sync ทุกแท็บ
-  useEffect(() => {
-    function onStorage(e) {
-      if (e.key === 'auth_token') setToken(localStorage.getItem('auth_token'))
-      if (e.key === 'auth_user') {
-        const u = localStorage.getItem('auth_user')
-        setUser(u ? JSON.parse(u) : null)
-      }
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
-
-  // ปิดเมนูเมื่อเปลี่ยนหน้า
-  useEffect(() => { setOpen(false); setMenuOpen(false) }, [pathname])
-
-  // === Hooks ที่ต้องถูกเรียกทุกครั้ง (ห้ามมี early return ก่อนถึงจุดนี้) ===
-  const role = user?.role ? String(user.role) : null
-
-  const visibleItems = useMemo(() => {
-    return NAV_ITEMS.filter(i => !i.roles || (role && i.roles.includes(role)))
-  }, [role])
-
-  const initials = useMemo(() => {
-    const name = (user?.email || user?.id || 'U').toString().split('@')[0]
-    return name.slice(0, 2).toUpperCase()
-  }, [user])
-
-  const onLoginPage = pathname === '/login' || pathname.startsWith('/login/')
-  const expired = isExpired(token)
-  const authed = !!token && !expired
-
-  // เด้งไป /login ถ้าไม่ใช่หน้า /login และไม่ผ่าน auth (หลัง boot เสร็จ)
-  useEffect(() => {
-    if (!boot) return
-    if (!onLoginPage && !authed) {
-      window.location.href = '/login'
-    }
-  }, [boot, authed, onLoginPage])
-
-  // ---- จากนี้เป็นการ “ตัดสินใจเรนเดอร์” (ไม่เพิ่ม/ลดยอด Hooks แล้ว) ----
-  // กันกะพริบตอนยังไม่บูต
-  if (!boot) return null
-
-  // ไม่เรนเดอร์ Nav ในหน้า /login หรือเมื่อยังไม่ผ่าน auth
-  if (onLoginPage || !authed) return null
-
-  function handleLogout() {
-    try {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('auth_user')
-    } finally {
-      window.location.href = '/login'
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
+    router.push('/login')
   }
 
-  return (
-    <header className="sticky top-0 z-40 w-full border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div className="mx-auto w-full px-4 sm:px-6">
-        {/* แถบบน */}
-        <div className="h-14 flex items-center justify-between gap-3">
-          {/* ซ้าย: burger + brand */}
-          <div className="flex items-center gap-2">
-            <button
-              className="md:hidden inline-flex items-center justify-center rounded-lg border px-2.5 py-1.5 text-sm hover:bg-gray-50"
-              onClick={() => setOpen(v => !v)}
-              aria-label="Toggle Menu"
-            >
-              ☰
-            </button>
-            <Link href="/" className="group flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 ring-2 ring-indigo-200" />
-              <span className="font-semibold tracking-tight group-hover:text-indigo-600">
-                H-series Team
-              </span>
-            </Link>
-          </div>
+  const isActive = (path) => pathname === path
 
-          {/* กลาง: เมนูเดสก์ท็อป */}
-          <nav className="hidden md:flex items-center gap-1">
-            {visibleItems.map(item => {
-              const active = pathname === item.href || pathname.startsWith(item.href + '/')
-              return (
+  return (
+    <nav className="sticky top-0 z-[90] bg-white/80 backdrop-blur-md border-b border-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          {/* Logo & Desktop Menu */}
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center gap-2 group">
+              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 group-hover:rotate-12 transition-transform">
+                <span className="text-white font-black text-xl italic">H</span>
+              </div>
+              <span className="text-lg font-black text-slate-900 tracking-tighter">H-TEAM</span>
+            </Link>
+
+            <div className="hidden md:ml-10 md:flex md:space-x-4">
+              {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={classNames(
-                    'px-3 py-1.5 rounded-lg text-sm transition',
-                    active
-                      ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  )}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                    isActive(item.href)
+                      ? 'bg-indigo-50 text-indigo-600'
+                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
                 >
                   {item.label}
                 </Link>
-              )
-            })}
-          </nav>
-
-          {/* ขวา: ค้นหา + ผู้ใช้ */}
-          <div className="flex items-center gap-2">
-            {/* ค้นหา (ตัวอย่าง) */}
-            <div className="relative hidden sm:block">
-              <input
-                placeholder="ค้นหา…"
-                className="w-56 rounded-lg border px-3 py-1.5 text-sm pr-8"
-              />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">⌘K</span>
+              ))}
             </div>
+          </div>
 
-            {/* เมนูผู้ใช้ */}
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen(v => !v)}
-                className="flex items-center gap-2 rounded-xl border px-2.5 py-1.5 hover:bg-gray-50"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-              >
-                <div className="h-7 w-7 grid place-items-center rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 text-[11px] font-bold text-slate-700">
-                  {initials}
+          {/* Right side: User & Mobile Toggle */}
+          <div className="flex items-center gap-4">
+            {user ? (
+              <div className="hidden md:flex items-center gap-3 pl-4 border-l border-slate-100">
+                <div className="text-right">
+                  <p className="text-xs font-black text-slate-900 leading-none">{user.name}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{user.role || 'Member'}</p>
                 </div>
-                <div className="hidden sm:flex flex-col items-start leading-tight">
-                  <span className="text-xs text-gray-500">ลงชื่อเข้าใช้</span>
-                  <span className="text-sm font-medium truncate max-w-[160px]">
-                    {user?.email || 'User'}
-                  </span>
-                </div>
-              </button>
-
-              {menuOpen && (
-                <div
-                  role="menu"
-                  className="absolute right-0 mt-2 w-64 rounded-2xl border bg-white p-2 shadow-lg"
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                  title="Logout"
                 >
-                  <div className="px-2 py-2">
-                    <div className="text-sm font-semibold">{user?.email || 'User'}</div>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
-                        Role: <b className="ml-1">{user?.role || 'user'}</b>
-                      </span>
-                      {user?.id && (
-                        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs text-gray-600">
-                          ID: {user.id}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="my-2 h-px bg-gray-100" />
-                  <Link
-                    href="/profile"
-                    role="menuitem"
-                    className="block rounded-lg px-3 py-2 text-sm hover:bg-gray-50"
-                  >
-                    โปรไฟล์ผู้ใช้
-                  </Link>
-                  {/* <Link
-                    href="/account"
-                    role="menuitem"
-                    className="block rounded-lg px-3 py-2 text-sm hover:bg-gray-50"
-                  >
-                    บัญชี & ความปลอดภัย
-                  </Link> */}
-                  <div className="my-2 h-px bg-gray-100" />
-                  <button
-                    onClick={handleLogout}
-                    role="menuitem"
-                    className="w-full text-left rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                  >
-                    ออกจากระบบ
-                  </button>
-                </div>
-              )}
+                  <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <Link href="/login" className="hidden md:block text-sm font-bold text-indigo-600 hover:text-indigo-700">เข้าสู่ระบบ</Link>
+            )}
+
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 rounded-xl text-slate-500 hover:bg-slate-50 transition"
+              >
+                {isMobileMenuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
+              </button>
             </div>
           </div>
         </div>
-
-        {/* ล่าง: mobile drawer */}
-        {open && (
-          <div className="md:hidden pb-3">
-            <nav className="mt-2 space-y-1">
-              {visibleItems.map(item => {
-                const active = pathname === item.href || pathname.startsWith(item.href + '/')
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={classNames(
-                      'block rounded-lg px-3 py-2 text-sm',
-                      active
-                        ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </nav>
-
-            {/* ค้นหามือถือ */}
-            <div className="mt-3">
-              <input
-                placeholder="ค้นหา…"
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-        )}
       </div>
-    </header>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden bg-white border-b border-slate-100 animate-fadeIn">
+          <div className="px-4 pt-2 pb-6 space-y-2">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-base font-bold transition-all ${
+                  isActive(item.href)
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.label}
+              </Link>
+            ))}
+            
+            {user && (
+              <div className="pt-4 mt-4 border-t border-slate-100">
+                <div className="flex items-center gap-3 px-4 mb-4">
+                  <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900">{user.name}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-base font-bold text-rose-600 hover:bg-rose-50 transition-all"
+                >
+                  <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                  ออกจากระบบ
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </nav>
   )
 }
