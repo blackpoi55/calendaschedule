@@ -3,6 +3,17 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import dayjs from "dayjs";
+import { 
+  ChevronLeftIcon, 
+  CalendarIcon, 
+  ListBulletIcon,
+  PlusIcon,
+  PencilSquareIcon,
+  TrashIcon,
+  InformationCircleIcon,
+  UserGroupIcon,
+  ClockIcon
+} from "@heroicons/react/24/outline";
 
 // คอมโพเนนต์ภายในโปรเจกต์เดิม
 import BigCalendar from "@/components/BigCalendar";
@@ -10,49 +21,33 @@ import AddTaskModal from "@/components/AddTaskModal";
 import GanttChart from "@/components/GanttChart";
 
 import {
-  addtask,            // คงไว้เพื่อ compat ถ้ามีใช้ที่อื่น
   deletetask,
   edittask,
-  getproJects,
-  getrole,            // ← API อาจคืน array หรือ {data: [...]}
-  getmember,
-  getmemberbyteam,
-  getproJectsById,    // ← คืน { data: [ { ...project, ProjectMembers:[{ user:{id,name} }]} ] }
-  getTaskByProjectId, // ← คืน { data: Task[] } ; Task.members = [{id,name}]
+  getrole,
+  getproJectsById,
+  getTaskByProjectId,
   createTask,
 } from "@/action/api";
 
 /* ============================== helpers ============================== */
 const cn = (...c) => c.filter(Boolean).join(" ");
 const safeLower = (v) => (v === 0 ? "0" : (v ?? "")).toString().trim().toLowerCase();
-const formatDate = (d) =>
-  d && dayjs(d).isValid() ? dayjs(d).format("DD/MM/YYYY") : "-";
+const formatDate = (d) => d && dayjs(d).isValid() ? dayjs(d).format("DD/MM/YYYY") : "-";
 
-/** บังคับให้ค่าที่รับมาเป็นอาร์เรย์ (รองรับหลายฟอร์แมต: [], {data:[]}, {items:[]}, null) */
 function toArray(maybeArr) {
   if (Array.isArray(maybeArr)) return maybeArr;
   if (maybeArr && Array.isArray(maybeArr.data)) return maybeArr.data;
-  if (maybeArr && typeof maybeArr === "object") {
-    const firstArrayKey = Object.keys(maybeArr).find((k) => Array.isArray(maybeArr[k]));
-    if (firstArrayKey) return maybeArr[firstArrayKey];
-  }
   return [];
 }
 
-/** หาใน array โดยเทียบหลายคีย์ */
 function findByAnyKey(arr, value) {
   const target = safeLower(value);
-  return arr.find((x) =>
-    ["id", "value", "label", "name", "key", "code"]
-      .map((k) => x?.[k])
-      .some((v) => safeLower(v) === target)
-  );
+  return arr.find((x) => ["id", "value", "label", "name", "key", "code"].map((k) => x?.[k]).some((v) => safeLower(v) === target));
 }
 
-/** map roles ที่ไม่มีสี → เติมสี default (รองรับทุกฟอร์แมตตอบกลับของ getrole) */
 function decorateRoles(rawRolesLike) {
-  const rawRoles = toArray(rawRolesLike); // ✅ ป้องกัน .map is not a function
-  const palette = ["#8b5cf6", "#f43f5e", "#059669", "#0ea5e9", "#f59e0b", "#ef4444", "#14b8a6"];
+  const rawRoles = toArray(rawRolesLike);
+  const palette = ["#6366f1", "#f43f5e", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4"];
   return rawRoles.map((r, idx) => ({
     id: r.id,
     name: r.name ?? r.label ?? `Role${r.id}`,
@@ -62,217 +57,105 @@ function decorateRoles(rawRolesLike) {
   }));
 }
 
-/** สร้าง memberMap จาก ProjectMembers (มี nested user) */
 function buildMemberMapFromProject(project) {
   const members = project?.ProjectMembers || [];
-  return members
-    .map((pm) => {
-      const u = pm?.user;
-      if (!u) return null;
-      return {
-        id: u.id,            // string (ตาม API)
-        value: u.id,
-        name: u.name || `User ${u.id}`,
-        label: u.name || `User ${u.id}`,
-        color: "#4b5563",    // default เทา
-        textcolor: "#ffffff",
-        image: null,
-      };
-    })
-    .filter(Boolean);
+  return members.map((pm) => {
+    const u = pm?.user;
+    if (!u) return null;
+    return { id: u.id, value: u.id, name: u.name || `User ${u.id}`, label: u.name || `User ${u.id}`, color: "#64748b", textcolor: "#ffffff" };
+  }).filter(Boolean);
 }
 
-/** สร้าง fallback member จาก task.members (กรณี ProjectMembers ไม่มีหรือยังไม่ซิงค์) */
 function buildMemberFallbackFromTasks(tasks) {
   const buf = new Map();
   (tasks || []).forEach((t) => {
     (t.members || []).forEach((m) => {
       const id = (typeof m === "object" ? m.id : m) ?? "";
       const name = (typeof m === "object" ? m.name : m) ?? "";
-      if (!buf.has(id)) {
-        buf.set(id, {
-          id,
-          value: id,
-          name: name || `User ${id}`,
-          label: name || `User ${id}`,
-          color: "#64748b",
-          textcolor: "#ffffff",
-          image: null,
-        });
-      }
+      if (!buf.has(id)) buf.set(id, { id, value: id, name: name || `User ${id}`, label: name || `User ${id}`, color: "#64748b", textcolor: "#ffffff" });
     });
   });
   return Array.from(buf.values());
 }
 
-/* ============================== Component ============================== */
-
 export default function ProjectDetail() {
   const { id } = useParams();
   const router = useRouter();
 
-  // ข้อมูลหลัก
-  const [project, setProject] = useState(null);       // จาก getproJectsById().data[0]
-  const [tasks, setTasks] = useState([]);             // จาก getTaskByProjectId().data
-  const [roleMap, setRoleMap] = useState([]);         // จาก getrole() (array หรือ {data:[]})
-  const [memberMap, setMemberMap] = useState([]);     // จาก ProjectMembers หรือ fallback tasks
+  const [project, setProject] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [roleMap, setRoleMap] = useState([]);
+  const [memberMap, setMemberMap] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // UI state
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [openTaskModal, setOpenTaskModal] = useState(false);
-  const [editTask, setEditTask] = useState(null);     // เก็บเป็น index (ตามโค้ดเดิม)
+  const [editTask, setEditTask] = useState(null);
   const [preFillDates, setPreFillDates] = useState(null);
   const [modeChoose, setModeChoose] = useState("Calendar");
   const calendarRef = useRef(null);
 
-  // วันสิ้นสุดโปรเจกต์ (ใช้เทียบ overdue)
-  const projectEnd = useMemo(() => {
-    const end = project?.endDate;
-    return end ? dayjs(end) : null;
-  }, [project]);
+  const projectEnd = useMemo(() => project?.endDate ? dayjs(project.endDate) : null, [project]);
 
-  // โหลดข้อมูลเมื่อ id เปลี่ยน
-  useEffect(() => {
+  const refreshData = async () => {
     if (!id) return;
-    let alive = true;
-    (async () => {
-      try {
-        // 1) โหลด tasks
-        const taskRes = await getTaskByProjectId(id); // { message, data: Task[] }
-        const tlist = toArray(taskRes?.data ?? taskRes);
-        if (!alive) return;
-        setTasks(tlist);
-        setFilteredTasks(tlist);
-
-        // 2) โหลด roles (array หรือ {data:[]})
-        let rawRolesResp;
-        try {
-          rawRolesResp = await getrole();
-        } catch (_e) {
-          rawRolesResp = [];
-        }
-        if (!alive) return;
-        setRoleMap(decorateRoles(rawRolesResp));
-
-        // 3) โหลด project + memberMap หลักจาก ProjectMembers
-        const projRes = await getproJectsById(id); // { message, data: [ projectObj ] }
-        const projArr = toArray(projRes?.data ?? projRes);
-        const proj = projArr?.[0] || null;
-        if (!alive) return;
-        setProject(proj);
-
-        let mm = buildMemberMapFromProject(proj);
-        if (!mm?.length) {
-          // ไม่มี ProjectMembers → ตกลง fallback จาก task.members
-          mm = buildMemberFallbackFromTasks(tlist);
-        }
-        setMemberMap(mm);
-      } catch (e) {
-        if (!alive) return;
-        console.error("refresh error:", e);
-        Swal.fire("ผิดพลาด", "โหลดข้อมูลไม่สำเร็จ", "error");
-        setTasks([]);
-        setFilteredTasks([]);
-        setProject(null);
-        setRoleMap([]);
-        setMemberMap([]);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [id]);
-
-  // เมื่อ tasks เปลี่ยน → พา Calendar ไปเดือนแรกที่มีงาน
-  useEffect(() => {
-    if (!calendarRef.current || !tasks?.length) return;
-    const firstStart = dayjs(
-      tasks.reduce(
-        (earliest, t) => (dayjs(t.start).isBefore(earliest) ? t.start : earliest),
-        tasks[0].start
-      )
-    );
-    if (firstStart.isValid()) {
-      calendarRef.current.navigate(firstStart.toDate(), "month");
-    }
-  }, [tasks]);
-
-  // helpers: หา role/member
-  const getRoleData = (roleVal) => {
-    // role ใน task เป็นเลข (เช่น 1,5)
-    const hit =
-      roleMap.find((r) => String(r.id) === String(roleVal)) ||
-      findByAnyKey(roleMap, roleVal);
-    return hit || null;
-  };
-
-  const getMemberDetail = (m) => {
-    // m จาก task.members = {id,name}
-    const idVal = typeof m === "object" ? (m.id ?? m) : m;
-    const nameVal = typeof m === "object" ? (m.name ?? String(m)) : String(m);
-    return (
-      memberMap.find((x) => String(x.id) === String(idVal)) ||
-      findByAnyKey(memberMap, idVal) ||
-      memberMap.find((x) => safeLower(x.name) === safeLower(nameVal)) ||
-      {
-        id: idVal,
-        value: idVal,
-        label: nameVal,
-        name: nameVal,
-        color: "#64748b",
-        textcolor: "#ffffff",
-        image: null,
-      }
-    );
-  };
-
-  // คำนวณ overdue เทียบกับวันจบโปรเจกต์
-  const { maxOverdueTask, overdueDays } = useMemo(() => {
-    if (!projectEnd || !Array.isArray(tasks) || tasks.length === 0)
-      return { maxOverdueTask: null, overdueDays: 0 };
-    const lateTasks = tasks.filter((t) => dayjs(t.end).isAfter(projectEnd, "day"));
-    if (!lateTasks.length) return { maxOverdueTask: null, overdueDays: 0 };
-    const latest = lateTasks.reduce((a, b) =>
-      dayjs(a.end).isAfter(dayjs(b.end)) ? a : b
-    );
-    return {
-      maxOverdueTask: latest,
-      overdueDays: dayjs(latest.end).diff(projectEnd, "day"),
-    };
-  }, [tasks, projectEnd]);
-
-  /* ============================== CRUD handlers ============================== */
-
-  const handleSaveTask = async (task) => {
-    // Modal ควรส่งรูปแบบ API ใหม่: { name, description, role(number), start, end, days, status, remark, members:[{id,name}] }
     try {
-      const { id: taskId, ...taskData } = task || {};
-      let res;
-      if (taskId) res = await edittask(task);
-      else res = await createTask(taskData);
+      setLoading(true);
+      const [taskRes, projRes, rawRolesResp] = await Promise.all([
+        getTaskByProjectId(id),
+        getproJectsById(id),
+        getrole().catch(() => [])
+      ]);
 
-      if (!res?.error) {
-        await Swal.fire(
-          "สำเร็จ",
-          taskId ? "แก้ไข Task เรียบร้อย!" : "เพิ่ม Task ใหม่เรียบร้อย!",
-          "success"
-        );
-        // reload เฉพาะ tasks + fallback members
-        const taskRes = await getTaskByProjectId(id);
-        const tlist = toArray(taskRes?.data ?? taskRes);
-        setTasks(tlist);
-        setFilteredTasks(tlist);
-        if (!memberMap?.length) {
-          setMemberMap(buildMemberFallbackFromTasks(tlist));
-        }
-        setOpenTaskModal(false);
-        setEditTask(null);
-        setPreFillDates(null);
-      } else {
-        Swal.fire("ผิดพลาด", res?.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล", "error");
-      }
+      const tlist = toArray(taskRes?.data ?? taskRes);
+      setTasks(tlist);
+      setFilteredTasks(tlist);
+      setRoleMap(decorateRoles(rawRolesResp));
+
+      const proj = toArray(projRes?.data ?? projRes)?.[0] || null;
+      setProject(proj);
+
+      let mm = buildMemberMapFromProject(proj);
+      if (!mm?.length) mm = buildMemberFallbackFromTasks(tlist);
+      setMemberMap(mm);
     } catch (e) {
       console.error(e);
+      Swal.fire("ผิดพลาด", "โหลดข้อมูลไม่สำเร็จ", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { refreshData(); }, [id]);
+
+  const getRoleData = (roleVal) => roleMap.find((r) => String(r.id) === String(roleVal)) || findByAnyKey(roleMap, roleVal) || null;
+
+  const getMemberDetail = (m) => {
+    const idVal = typeof m === "object" ? (m.id ?? m) : m;
+    const nameVal = typeof m === "object" ? (m.name ?? String(m)) : String(m);
+    return memberMap.find((x) => String(x.id) === String(idVal)) || findByAnyKey(memberMap, idVal) || { id: idVal, value: idVal, label: nameVal, name: nameVal, color: "#94a3b8", textcolor: "#ffffff" };
+  };
+
+  const { maxOverdueTask, overdueDays } = useMemo(() => {
+    if (!projectEnd || !tasks?.length) return { maxOverdueTask: null, overdueDays: 0 };
+    const lateTasks = tasks.filter((t) => dayjs(t.end).isAfter(projectEnd, "day"));
+    if (!lateTasks.length) return { maxOverdueTask: null, overdueDays: 0 };
+    const latest = lateTasks.reduce((a, b) => dayjs(a.end).isAfter(dayjs(b.end)) ? a : b);
+    return { maxOverdueTask: latest, overdueDays: dayjs(latest.end).diff(projectEnd, "day") };
+  }, [tasks, projectEnd]);
+
+  const handleSaveTask = async (task) => {
+    try {
+      const { id: taskId, ...taskData } = task || {};
+      const res = taskId ? await edittask(task) : await createTask(taskData);
+      if (!res?.error) {
+        Swal.fire("สำเร็จ", taskId ? "แก้ไขงานเรียบร้อย!" : "เพิ่มงานใหม่เรียบร้อย!", "success");
+        refreshData();
+        setOpenTaskModal(false);
+      } else {
+        Swal.fire("ผิดพลาด", res?.error || "เกิดข้อผิดพลาดในการบันทึก", "error");
+      }
+    } catch (e) {
       Swal.fire("ผิดพลาด", "บันทึกข้อมูลไม่สำเร็จ", "error");
     }
   };
@@ -283,318 +166,193 @@ export default function ProjectDetail() {
       text: "คุณต้องการลบงานนี้หรือไม่?",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "ลบ",
+      confirmButtonColor: "#ef4444",
+      confirmButtonText: "ลบงาน",
       cancelButtonText: "ยกเลิก",
     }).then(async (result) => {
-      if (!result.isConfirmed) return;
-      const deleting = tasks[index];
-      try {
-        const res = await deletetask(deleting?.id);
+      if (result.isConfirmed) {
+        const res = await deletetask(tasks[index]?.id);
         if (!res?.error) {
-          await Swal.fire("ลบสำเร็จ!", "งานถูกลบเรียบร้อยแล้ว", "success");
-          // รีโหลด tasks
-          const taskRes = await getTaskByProjectId(id);
-          const tlist = toArray(taskRes?.data ?? taskRes);
-          setTasks(tlist);
-          setFilteredTasks(tlist);
-          if (!memberMap?.length) {
-            setMemberMap(buildMemberFallbackFromTasks(tlist));
-          }
-        } else {
-          Swal.fire("ล้มเหลว", res?.error || "ไม่สามารถลบได้", "error");
+          Swal.fire("ลบสำเร็จ!", "งานถูกลบเรียบร้อยแล้ว", "success");
+          refreshData();
         }
-      } catch (e) {
-        console.error(e);
-        Swal.fire("ล้มเหลว", "ไม่สามารถลบได้", "error");
       }
     });
   };
+
   const totalProjectDays = useMemo(() => {
-    const s = project?.startDate ? dayjs(project.startDate).startOf("day") : null;
-    const e = project?.endDate ? dayjs(project.endDate).startOf("day") : null;
-    if (!s || !e || !s.isValid() || !e.isValid()) return null;
-
-    // นับแบบ inclusive: ถ้าช่วงเดียวกัน (วันเดียว) จะได้ 1
-    const days = e.diff(s, "day") + 1;
-
-    // กันค่าติดลบกรณี end ก่อน start (ข้อมูลเพี้ยน)
-    return Math.max(days, 0);
-  }, [project?.startDate, project?.endDate]);
-
-  /* ============================== Render ============================== */
+    const s = dayjs(project?.startDate);
+    const e = dayjs(project?.endDate);
+    return s.isValid() && e.isValid() ? Math.max(e.diff(s, "day") + 1, 0) : null;
+  }, [project]);
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#fce4ec] to-[#ede7f6] p-4 md:p-6 gap-6">
-      {/* 📋 Project Info Panel */}
-      <div className="w-full lg:w-1/3 bg-white rounded-xl shadow-xl p-6 flex flex-col h-fit">
-        <div className="flex flex-col sm:flex-row items-center w-full gap-4 sm:gap-0 mb-4">
-          <div className="flex w-full sm:w-1/2 justify-start items-center">
-            <h2
-              onClick={() => router.push("/")}
-              className="text-2xl font-bold text-purple-600 cursor-pointer flex items-center gap-2 hover:scale-105 hover:text-purple-800 transition"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-                className="w-6 h-6"
+    <div className="min-h-screen bg-slate-50/50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+        
+        {/* Sidebar: Project Info */}
+        <aside className="w-full lg:w-[380px] space-y-6 shrink-0">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center gap-4 mb-6">
+              <button onClick={() => router.push("/")} className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-500 border border-slate-100 shadow-sm">
+                <ChevronLeftIcon className="w-5 h-5" />
+              </button>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight truncate">{project?.name || "Loading..."}</h1>
+            </div>
+
+            <div className="space-y-4 text-sm">
+              <div className="flex items-center justify-between text-slate-500 bg-slate-50 p-3 rounded-2xl">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4" />
+                  <span>Timeline</span>
+                </div>
+                <span className="font-bold text-slate-700">{formatDate(project?.startDate)} - {formatDate(project?.endDate)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 bg-slate-50 p-3 rounded-2xl">
+                <div className="flex items-center gap-2">
+                  <ClockIcon className="w-4 h-4" />
+                  <span>Duration</span>
+                </div>
+                <span className="font-bold text-slate-700">{(totalProjectDays ?? project?.totalDays ?? "-")} Days</span>
+              </div>
+              
+              {maxOverdueTask && (
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-700 flex items-start gap-3">
+                  <InformationCircleIcon className="w-5 h-5 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <span className="font-bold">Overdue: {overdueDays} Days</span>
+                    <p className="opacity-80 mt-1">Task: {maxOverdueTask?.name || maxOverdueTask?.role}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-slate-900">Task List</h3>
+                <button 
+                  onClick={() => setFilteredTasks(tasks)}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition"
+                >
+                  Show All
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 scrollbar-hide">
+                {tasks.map((t, i) => {
+                  const roleData = getRoleData(t.role);
+                  const isLate = projectEnd && dayjs(t.end).isAfter(projectEnd, "day");
+                  
+                  return (
+                    <div 
+                      key={t.id || i}
+                      onClick={() => setFilteredTasks([t])}
+                      className={cn(
+                        "group p-4 rounded-2xl border transition-all cursor-pointer",
+                        isLate ? "bg-rose-50 border-rose-100 hover:border-rose-300" : "bg-white border-slate-200 hover:border-indigo-300 shadow-sm"
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors" style={{ color: !isLate ? roleData?.color : undefined }}>
+                          {t.name || t.role}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); setEditTask(i); setOpenTaskModal(true); }} className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition">
+                            <PencilSquareIcon className="w-4 h-4" />
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteTask(i); }} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1 mb-2">{t.description}</p>
+                      <div className="flex items-center justify-between mt-auto">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{formatDate(t.start)} - {formatDate(t.end)}</span>
+                        <div className="flex -space-x-1.5">
+                          {t.members?.slice(0, 3).map((m, idx) => {
+                            const md = getMemberDetail(m);
+                            return (
+                              <div key={idx} className="w-5 h-5 rounded-full border border-white flex items-center justify-center text-[8px] font-bold text-white shadow-sm" style={{ backgroundColor: md.color || "#6366f1" }} title={md.name}>
+                                {md.name.charAt(0).toUpperCase()}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => { setEditTask(null); setOpenTaskModal(true); }}
+                className="mt-6 w-full py-3 bg-indigo-600 text-white rounded-2xl shadow-md shadow-indigo-100 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition font-bold text-sm flex items-center justify-center gap-2"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-              </svg>
-              <span>{project?.name ?? "-"}</span>
-            </h2>
+                <PlusIcon className="w-5 h-5" /> New Task
+              </button>
+            </div>
           </div>
-          <div className="flex w-full sm:w-1/2 justify-start sm:justify-end items-center">
+        </aside>
+
+        {/* Main Content: Calendar/Gantt */}
+        <main className="flex-1 space-y-6 overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-2 inline-flex">
             <button
               onClick={() => setModeChoose("Calendar")}
               className={cn(
-                "rounded-l-lg p-2",
-                modeChoose === "Calendar"
-                  ? "bg-gradient-to-r from-purple-300 to-pink-400 text-white"
-                  : "bg-gray-500 text-white"
+                "px-6 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center gap-2",
+                modeChoose === "Calendar" ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "text-slate-500 hover:bg-slate-50"
               )}
             >
-              Calendar
+              <CalendarIcon className="w-5 h-5" /> Calendar
             </button>
             <button
               onClick={() => setModeChoose("GanttChart")}
               className={cn(
-                "rounded-r-lg p-2",
-                modeChoose === "GanttChart"
-                  ? "bg-gradient-to-r from-purple-300 to-pink-400 text-white"
-                  : "bg-gray-500 text-white"
+                "px-6 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center gap-2",
+                modeChoose === "GanttChart" ? "bg-indigo-600 text-white shadow-md shadow-indigo-100" : "text-slate-500 hover:bg-slate-50"
               )}
             >
-              GanttChart
+              <ListBulletIcon className="w-5 h-5" /> Gantt Chart
             </button>
           </div>
-        </div>
 
-        <p className="mb-2">
-          <span className="font-semibold">ระยะเวลา:</span>{" "}
-          {formatDate(project?.startDate)} - {formatDate(project?.endDate)}
-        </p>
-        <p className="mb-4">
-          <span className="font-semibold">รวม:</span>{" "}
-          {(totalProjectDays ?? project?.totalDays ?? "-")} วัน
-        </p>
-        {/* 🔴 งานเกินกำหนด (เทียบวันจบโปรเจกต์) */}
-        {maxOverdueTask && (
-          <div className="mb-4 p-3 rounded-lg bg-red-100 border border-red-300 text-red-700">
-            ⚠ เกินกำหนด <strong>{overdueDays} วัน</strong> (Task:{" "}
-            <strong>{maxOverdueTask?.name || maxOverdueTask?.role}</strong>{" "}
-            สิ้นสุด {formatDate(maxOverdueTask?.end)})
-          </div>
-        )}
-
-        <h3 className="text-lg font-semibold text-purple-500 mb-2 flex justify-between items-center">
-          รายการงาน:
-          <button
-            onClick={() => {
-              setFilteredTasks(tasks);
-              if (calendarRef.current && tasks.length > 0) {
-                const firstStart = dayjs(
-                  tasks.reduce(
-                    (earliest, t) =>
-                      dayjs(t.start).isBefore(earliest) ? t.start : earliest,
-                    tasks[0].start
-                  )
-                );
-                if (firstStart.isValid()) {
-                  calendarRef.current.navigate(firstStart.toDate(), "month");
-                }
-              }
-            }}
-            className="text-sm px-3 py-1 bg-gradient-to-r from-purple-300 to-pink-400 text-white rounded-lg hover:bg-blue-600 transition"
-          >
-            แสดงทั้งหมด
-          </button>
-        </h3>
-
-        {/* 🔽 รายการ Tasks */}
-        <ul className="space-y-3 overflow-y-auto max-h-[60vh] pr-2">
-          {tasks.map((t, i) => {
-            const roleData = getRoleData(t.role);
-            const today = dayjs();
-            const start = dayjs(t.start);
-            const end = dayjs(t.end);
-
-            let bgColor = "bg-purple-50 border-purple-100";
-            if (projectEnd && end.isAfter(projectEnd, "day")) bgColor = "bg-red-100 border-red-300";
-            else if (today.isAfter(end, "day")) bgColor = "bg-green-100 border-green-300";
-
-            return (
-              <li
-                key={t.id ?? i}
-                className={cn("p-4 rounded-lg shadow-sm border cursor-pointer transition hover:scale-[1.01]", bgColor)}
-                onClick={() => {
-                  setFilteredTasks([t]);
-                  if (calendarRef.current && start.isValid()) {
-                    calendarRef.current.navigate(start.toDate(), "month");
-                  }
+          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 overflow-hidden min-h-[700px]">
+            {loading ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
+                <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
+                <span className="text-sm font-bold uppercase tracking-widest">Loading View...</span>
+              </div>
+            ) : modeChoose === "Calendar" ? (
+              <BigCalendar
+                ref={calendarRef}
+                tasks={filteredTasks}
+                roleMap={roleMap}
+                onEditTask={(task) => {
+                  const idx = tasks.findIndex((t) => t === task || String(t.id) === String(task?.id));
+                  setEditTask(idx >= 0 ? idx : null);
+                  setOpenTaskModal(true);
                 }}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <span
-                    className="font-bold"
-                    style={{ color: roleData?.color || "#6b21a8" }}
-                    title={roleData?.label || roleData?.name || t.role}
-                  >
-                    {t.name ?? `Task #${t.id}`}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">
-                      {t.days ?? "-"} วัน
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditTask(i);
-                        setPreFillDates(null);
-                        setOpenTaskModal(true);
-                      }}
-                      className="text-xs bg-yellow-400 hover:bg-yellow-500 text-white px-2 py-1 rounded"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className="w-4 h-4"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTask(i);
-                      }}
-                      className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className="w-4 h-4"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-700 mb-1">
-                  {t.description}
-                </p>
-                <p className="text-sm text-gray-600 mb-1">
-                  {formatDate(t.start)} ➝ {formatDate(t.end)}
-                </p>
-
-                {/* 👥 สมาชิก (API ใหม่: t.members = [{id,name}]) */}
-                {Array.isArray(t.members) && t.members.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {t.members.map((m, i) => {
-                      const md = getMemberDetail(m);
-                      const key = typeof m === "object" ? (m.id ?? m.name) : m;
-                      return (
-                        <div
-                          key={i}
-                          title={md.label || md.name}
-                          style={{
-                            backgroundColor: md.color || "#64748b",
-                            color: md.textcolor || "#ffffff",
-                          }}
-                          className="flex items-center justify-center text-[11px] px-2 rounded-full shadow-md h-7 max-w-[140px] text-center truncate"
-                        >
-                          <span className="truncate">{md.label || md.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* 📝 หมายเหตุ */}
-                {t.remark && String(t.remark).trim() !== "" && (
-                  <p className="text-xs text-red-700 italic bg-red-50 border border-red-200 rounded p-2 mt-2">
-                    📝 หมายเหตุ: {t.remark}
-                  </p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        <button
-          onClick={() => {
-            setEditTask(null);
-            setPreFillDates(null);
-            setOpenTaskModal(true);
-          }}
-          className="mt-4 w-full py-2 bg-gradient-to-r from-purple-300 to-pink-400 text-white rounded-xl shadow hover:scale-105 transition"
-        >
-          + Task ใหม่
-          <span className="flex items-center justify-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Task ใหม่
-          </span>
-        </button>
+                onAddTask={({ start, end }) => {
+                  setEditTask(null);
+                  setPreFillDates({ start, end });
+                  setOpenTaskModal(true);
+                }}
+              />
+            ) : (
+              <GanttChart tasks={filteredTasks} project={project} />
+            )}
+          </div>
+        </main>
       </div>
 
-      {/* 📅 ปฏิทิน / Gantt */}
-      <div className="flex-1 bg-white rounded-xl shadow-xl p-4">
-        {modeChoose === "Calendar" ? (
-          <BigCalendar
-            ref={calendarRef}
-            tasks={filteredTasks}
-            roleMap={roleMap}
-            onEditTask={(task) => {
-              const idx = tasks.findIndex((t) => t === task || String(t.id) === String(task?.id));
-              setEditTask(idx >= 0 ? idx : null);
-              setPreFillDates(null);
-              setOpenTaskModal(true);
-            }}
-            onAddTask={({ start, end }) => {
-              setEditTask(null);
-              setPreFillDates({ start, end });
-              setOpenTaskModal(true);
-            }}
-          />
-        ) : (
-          <GanttChart tasks={filteredTasks} project={project} />
-        )}
-      </div>
-
-      {/* 🧩 Modal เพิ่ม/แก้ */}
       {openTaskModal && (
         <AddTaskModal
           id={id}
-          onClose={() => {
-            setOpenTaskModal(false);
-            setEditTask(null);
-            setPreFillDates(null);
-          }}
+          onClose={() => { setOpenTaskModal(false); setEditTask(null); setPreFillDates(null); }}
           onSave={handleSaveTask}
           editData={editTask !== null ? tasks[editTask] : null}
           preFillDates={preFillDates}
-        // หมายเหตุ: ให้แน่ใจว่า AddTaskModal ส่ง payload ตามสัญญาใหม่: members เป็น [{id,name}]
         />
       )}
     </div>
